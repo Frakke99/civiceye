@@ -51,7 +51,7 @@ Regels:
 | ---- | ------------------ |
 | `pnpm lint` + `tsc --noEmit` | typefouten en dode code |
 | `pnpm test` (unit: outbox-retries, puntenberekening, foutmapping) | logicafouten in de client |
-| **DB-job**: migraties + `db/test/10_tests.sql` op postgis/postgis | een migratie die niet draait, een RLS-lek, een kapotte RPC |
+| **DB-job**: migraties + de 48 assertions van `db/test/10_tests.sql` op postgis/postgis | een migratie die niet draait, een RLS-lek, een kapotte RPC |
 | Migratie op een gevulde databank (seed → migraties) | migraties die enkel op een lege databank werken |
 | `redocly lint api/openapi.yaml` | een API-contract dat niet meer geldig is |
 | `pnpm audit --audit-level=high` | bekende kwetsbaarheden |

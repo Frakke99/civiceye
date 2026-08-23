@@ -20,6 +20,27 @@ Wat we bewust **niet** verzamelen: geen achtergrondlocatie, geen advertentie-id,
 geen contactenlijst, geen locatiegeschiedenis van de gebruiker (enkel de punten
 die hij zelf meldt), geen ruwe IP-adressen in de databank.
 
+### Hoe de IP-hash werkt
+
+Er komt nooit een ruw IP-adres in de databank. `create_report` leest het
+`x-forwarded-for`-veld dat PostgREST doorgeeft, neemt daar alleen het **eerste**
+adres uit (de rest is proxyketen), en slaat er een SHA-256 van op met een salt
+die in `app_config` zit — niet in de code, dus niet in git.
+
+Die salt **roteert maandelijks** (in `purge_old_data`, zodra hij ouder is dan de
+auditbewaartermijn). Na een rotatie is correlatie over de grens heen onmogelijk,
+en dat is precies de bedoeling: de rijen van vóór de rotatie zijn dan toch al
+gewist. Wat overblijft is genoeg om binnen één maand te zien dat honderd
+meldingen van dezelfde bron komen, en te weinig om iemand te identificeren.
+
+Ontbreken de headers (een cronjob, een directe SQL-aanroep, een test), dan
+blijft `ip_hash` leeg en gaat de melding gewoon door. Misbruikdetectie mag nooit
+een reden zijn waarom een melding faalt.
+
+`db/test/10_tests.sql` test dit expliciet: de hash is 64 tekens, bevat het
+adres niet, is stabiel per adres, verschilt per adres, negeert de proxyketen, en
+verandert na een salt-rotatie.
+
 ## Anonimiteit: wat het wel en niet betekent
 
 De kaart is **publiek anoniem**: geen enkel antwoord van de API bevat de melder.

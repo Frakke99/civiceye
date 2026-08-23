@@ -42,6 +42,11 @@ alter table public.app_config           enable row level security;
 -- ---------------------------------------------------------------------------
 -- reports: publiek leesbaar wat gepubliceerd is; je eigen meldingen altijd
 -- ---------------------------------------------------------------------------
+-- Let op de vorm `(select auth.uid())` in plaats van `auth.uid()`. Zonder de
+-- subselect evalueert Postgres de functie **per rij**; met de subselect wordt
+-- het een InitPlan die één keer per query loopt. Op de kaartquery (honderden
+-- rijen) is dat het verschil tussen een index-scan en een functieaanroep per
+-- melding.
 grant select on public.reports to anon, authenticated;
 
 create policy reports_public_read on public.reports
@@ -52,12 +57,12 @@ create policy reports_public_read on public.reports
 create policy reports_own_read on public.reports
   for select
   to authenticated
-  using (created_by = auth.uid());
+  using (created_by = (select auth.uid()));
 
 create policy reports_moderator_read on public.reports
   for select
   to authenticated
-  using (public.is_moderator());
+  using ((select public.is_moderator()));
 
 -- ---------------------------------------------------------------------------
 -- report_photos: enkel gescande foto's van zichtbare meldingen
@@ -83,7 +88,7 @@ create policy report_photos_own_read on public.report_photos
     exists (
       select 1 from public.reports r
       where r.id = report_photos.report_id
-        and r.created_by = auth.uid()
+        and r.created_by = (select auth.uid())
     )
   );
 
@@ -95,7 +100,7 @@ grant select on public.profiles to authenticated;
 create policy profiles_own_read on public.profiles
   for select
   to authenticated
-  using (id = auth.uid());
+  using (id = (select auth.uid()));
 
 -- ---------------------------------------------------------------------------
 -- flags / confirmations / cleanups: je eigen bijdragen zijn leesbaar,
@@ -104,17 +109,17 @@ create policy profiles_own_read on public.profiles
 grant select on public.report_flags to authenticated;
 create policy report_flags_own_read on public.report_flags
   for select to authenticated
-  using (flagged_by = auth.uid());
+  using (flagged_by = (select auth.uid()));
 
 grant select on public.report_confirmations to authenticated;
 create policy report_confirmations_own_read on public.report_confirmations
   for select to authenticated
-  using (confirmed_by = auth.uid());
+  using (confirmed_by = (select auth.uid()));
 
 grant select on public.cleanups to authenticated;
 create policy cleanups_own_read on public.cleanups
   for select to authenticated
-  using (user_id = auth.uid());
+  using (user_id = (select auth.uid()));
 
 -- ---------------------------------------------------------------------------
 -- Configuratie & gebieden: leesbaar (de app moet weten welke types aanstaan)

@@ -28,7 +28,7 @@ rood maakt.
 | Bestand | Rol |
 | ------- | --- |
 | `00_supabase_stubs.sql` | stubt wat Supabase levert: het `auth`-schema, `auth.users`, `auth.uid()` en de rollen `anon`/`authenticated`/`service_role`. **Nooit** op Supabase draaien |
-| `10_tests.sql` | 40+ assertions: posten, idempotentie, validatie, deduplicatie, rate limits, kaartquery, moderatie, fotopijplijn, punten, retentie, RLS |
+| `10_tests.sql` | 48 assertions: posten, idempotentie, validatie, deduplicatie, rate limits, kaartquery, moderatie, fotopijplijn, punten, retentie, IP-hashing en RLS (lezen én schrijven) |
 | `20_perf.sql` | genereert 50 000 meldingen en meet de kaartquery met `EXPLAIN (ANALYZE)`. Draai dit na elke wijziging aan `reports` of `map_reports` |
 | `30_cluster_cache.sql` | bewijst dat de opschaalstap (`db/scale/0100`) exact dezelfde aantallen geeft als de live query |
 | `run_tests.sh` | volledige reeks; ook gebruikt door CI |

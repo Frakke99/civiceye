@@ -314,7 +314,87 @@ select pg_temp.assert(
   (select (public.purge_old_data() ->> 'photos_failed')::int >= 0),
   'purge_old_data markeert vastgelopen scans als failed');
 
--- --- 17. RLS: rechtstreeks schrijven mag niet ---------------------------
+-- --- 17. IP-hash: nooit een ruw IP, wel correleerbaar -------------------
+-- Gebruiker 3, want 1 is geblokkeerd (test 15) en 2 zit aan zijn rate limit (test 6).
+select set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
+
+-- zonder headers (directe SQL-aanroep, cronjob, test) mag er geen hash zijn,
+-- en het posten mag daar niet op stuklopen
+select set_config('request.headers', '', true);
+do $$
+declare v_res jsonb; v_hash text;
+begin
+  v_res := public.create_report(gen_random_uuid(), 51.44, 4.74, 'litter', 'piece');
+  select ip_hash into v_hash from public.report_audit
+  where report_id = (v_res ->> 'report_id')::uuid;
+  if v_hash is not null then
+    raise exception 'ASSERT FAILED: zonder headers mag er geen ip_hash zijn, kreeg %', v_hash;
+  end if;
+  raise notice 'ok — zonder HTTP-headers wordt er geen IP-hash bewaard';
+end;
+$$;
+
+-- met headers zoals PostgREST ze doorgeeft
+select set_config('request.headers',
+  '{"x-forwarded-for":"81.240.10.7, 10.0.0.1","user-agent":"GlobalCleanup/1.0 (iPhone)"}',
+  true);
+
+do $$
+declare v_res jsonb; v_audit public.report_audit;
+begin
+  v_res := public.create_report(gen_random_uuid(), 51.45, 4.75, 'litter', 'bag');
+  select * into v_audit from public.report_audit
+  where report_id = (v_res ->> 'report_id')::uuid;
+
+  if v_audit.ip_hash is null then
+    raise exception 'ASSERT FAILED: ip_hash werd niet gevuld';
+  end if;
+  if v_audit.ip_hash like '%81.240%' or length(v_audit.ip_hash) <> 64 then
+    raise exception 'ASSERT FAILED: ip_hash is geen sha256-hash: %', v_audit.ip_hash;
+  end if;
+  if v_audit.user_agent <> 'GlobalCleanup/1.0 (iPhone)' then
+    raise exception 'ASSERT FAILED: user_agent klopt niet: %', v_audit.user_agent;
+  end if;
+  raise notice 'ok — IP wordt als sha256 bewaard, nooit als ruw adres';
+end;
+$$;
+
+-- hetzelfde IP moet dezelfde hash geven (correlatie), een ander IP niet
+select pg_temp.assert(
+  public.hash_ip('81.240.10.7') = public.hash_ip('81.240.10.7')
+  and public.hash_ip('81.240.10.7') <> public.hash_ip('81.240.10.8'),
+  'hash_ip is stabiel per adres en verschilt per adres');
+
+-- de proxyketen mag niet meegehasht worden
+select pg_temp.assert(
+  (select ip_hash = public.hash_ip('81.240.10.7') from public.report_audit
+   where ip_hash is not null limit 1),
+  'enkel het eerste adres uit x-forwarded-for wordt gehasht');
+
+-- salt roteren maakt oude hashes onbruikbaar voor correlatie
+do $$
+declare v_voor text; v_na text;
+begin
+  v_voor := public.hash_ip('81.240.10.7');
+  update public.app_config
+  set value = to_jsonb((now() - interval '60 days')::text)
+  where key = 'ip_hash_salt_rotated_at';
+
+  if not (public.purge_old_data() ->> 'salt_rotated')::boolean then
+    raise exception 'ASSERT FAILED: salt had geroteerd moeten worden';
+  end if;
+
+  v_na := public.hash_ip('81.240.10.7');
+  if v_voor = v_na then
+    raise exception 'ASSERT FAILED: salt roteerde niet echt';
+  end if;
+  raise notice 'ok — salt roteert; hashes van vóór de rotatie zijn niet meer te koppelen';
+end;
+$$;
+
+select set_config('request.headers', '', true);
+
+-- --- 18. RLS: rechtstreeks schrijven mag niet ---------------------------
 do $$
 begin
   set local role authenticated;
@@ -343,6 +423,71 @@ begin
     reset role;
     raise notice 'ok — anon kan de audittabel niet lezen';
   end;
+end;
+$$;
+
+-- --- 19. RLS bij lezen: publiek + eigen, nooit dat van anderen ----------
+-- Deze test dekt de `(select auth.uid())`-vorm in de policies: een verkeerd
+-- geschreven policy geeft hier ofwel te veel ofwel te weinig rijen.
+do $$
+declare
+  v_eigen uuid;
+  v_ander uuid;
+  v_zicht integer;
+  v_totaal integer;
+begin
+  -- een verborgen melding van gebruiker 2, en één van gebruiker 3
+  perform set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', true);
+  select id into v_eigen from public.reports
+  where created_by = '22222222-2222-2222-2222-222222222222' limit 1;
+  update public.reports set status = 'quarantined' where id = v_eigen;
+
+  select id into v_ander from public.reports
+  where created_by = '33333333-3333-3333-3333-333333333333' limit 1;
+  update public.reports set status = 'quarantined' where id = v_ander;
+
+  set local role authenticated;
+
+  -- gebruiker 2 ziet zijn eigen verborgen melding
+  select count(*) into v_zicht from public.reports where id = v_eigen;
+  if v_zicht <> 1 then
+    reset role;
+    raise exception 'ASSERT FAILED: eigen gequarantineerde melding moet zichtbaar zijn';
+  end if;
+
+  -- maar niet die van iemand anders
+  select count(*) into v_zicht from public.reports where id = v_ander;
+  if v_zicht <> 0 then
+    reset role;
+    raise exception 'ASSERT FAILED: gequarantineerde melding van een ander mag niet zichtbaar zijn';
+  end if;
+
+  -- en geen enkele gequarantineerde melding van anderen in een brede select
+  select count(*) into v_zicht from public.reports
+  where status = 'quarantined'
+    and created_by <> '22222222-2222-2222-2222-222222222222';
+  reset role;
+  if v_zicht <> 0 then
+    raise exception 'ASSERT FAILED: RLS lekt % verborgen meldingen van anderen', v_zicht;
+  end if;
+
+  raise notice 'ok — RLS: eigen verborgen melding zichtbaar, die van anderen niet';
+end;
+$$;
+
+-- anon ziet alleen gepubliceerde meldingen
+do $$
+declare v_anon integer; v_alles integer;
+begin
+  perform set_config('request.jwt.claim.sub', '', true);
+  select count(*) into v_alles from public.reports;
+  set local role anon;
+  select count(*) into v_anon from public.reports;
+  reset role;
+  if v_anon >= v_alles then
+    raise exception 'ASSERT FAILED: anon ziet % van % rijen — RLS filtert niet', v_anon, v_alles;
+  end if;
+  raise notice 'ok — anon ziet % van % meldingen (alleen gepubliceerde)', v_anon, v_alles;
 end;
 $$;
 

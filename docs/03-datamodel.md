@@ -99,7 +99,8 @@ rol `authenticated` moet falen; `anon` moet nul rijen zien in `report_audit`).
 | ---- | ------------- | ----- |
 | Opgeruimde/verwijderde meldingen | 365 dagen (`app_config.retention_days`) | historische waarde vervalt; GDPR-minimalisatie |
 | Open meldingen | onbeperkt | een melding die er nog ligt, blijft relevant |
-| `report_audit` (IP-hash, user agent) | 30 dagen | genoeg voor misbruikonderzoek, niet meer |
+| `report_audit` (IP-**hash**, user agent) | 30 dagen | genoeg voor misbruikonderzoek, niet meer |
+| Salt van de IP-hash | roteert maandelijks | na rotatie is oudere data niet meer te correleren |
 | Foto's met `scan_status = 'pending'` na 24 u | → `failed` | een vastgelopen scan mag nooit stil publiceren |
 
 Foto's van een verwijderde melding verdwijnen mee via `on delete cascade` op

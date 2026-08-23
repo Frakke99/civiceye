@@ -29,6 +29,63 @@ as $$
   select coalesce((public.cfg(p_key))::integer, p_default);
 $$;
 
+-- IP-hash voor misbruikdetectie. We bewaren nooit een ruw IP-adres: enkel een
+-- SHA-256 met een salt die maandelijks roteert (purge_old_data). Na een rotatie
+-- is correlatie over de grens heen onmogelijk — precies de bedoeling, want de
+-- auditrijen zijn dan toch al gewist (30 dagen bewaartermijn).
+--
+-- search_path bevat 'extensions' omdat pgcrypto daar op Supabase leeft; een
+-- niet-bestaand schema in search_path wordt gewoon overgeslagen.
+create or replace function public.hash_ip(p_ip text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_salt text;
+begin
+  if p_ip is null or btrim(p_ip) = '' then
+    return null;
+  end if;
+  select value #>> '{}' into v_salt from public.app_config where key = 'ip_hash_salt';
+  if v_salt is null then
+    return null;
+  end if;
+  return encode(digest(btrim(p_ip) || v_salt, 'sha256'), 'hex');
+end;
+$$;
+
+-- Leest het IP en de user agent uit de HTTP-headers die PostgREST doorgeeft.
+-- Faalt stil: geen headers (bv. een directe SQL-aanroep of een test) mag nooit
+-- een melding tegenhouden.
+create or replace function public.request_meta()
+returns jsonb
+language plpgsql
+stable
+as $$
+declare
+  v_headers jsonb;
+  v_ip      text;
+  v_ua      text;
+begin
+  begin
+    v_headers := nullif(current_setting('request.headers', true), '')::jsonb;
+  exception when others then
+    v_headers := null;
+  end;
+
+  if v_headers is not null then
+    -- x-forwarded-for kan een keten van proxy's zijn; de eerste is de client
+    v_ip := nullif(btrim(split_part(coalesce(v_headers ->> 'x-forwarded-for', ''), ',', 1)), '');
+    v_ua := nullif(left(coalesce(v_headers ->> 'user-agent', ''), 200), '');
+  end if;
+
+  return jsonb_build_object('ip', v_ip, 'user_agent', v_ua);
+end;
+$$;
+
 -- Punten per type/grootte. Eén plaats, zodat fase 2 enkel deze functie aanpast.
 create or replace function public.points_for(
   p_kind public.report_kind,
@@ -89,6 +146,7 @@ declare
   v_recent     integer;
   v_muni       text;
   v_nearby     integer;
+  v_meta       jsonb;
 begin
   -- 1. authenticatie
   if v_uid is null then
@@ -210,8 +268,13 @@ begin
     returning id into v_photo_id;
   end if;
 
-  insert into public.report_audit (report_id, app_version)
-  values (v_report_id, p_app_version)
+  v_meta := public.request_meta();
+
+  insert into public.report_audit (report_id, ip_hash, user_agent, app_version)
+  values (v_report_id,
+          public.hash_ip(v_meta ->> 'ip'),
+          v_meta ->> 'user_agent',
+          p_app_version)
   on conflict (report_id) do nothing;
 
   update public.profiles
@@ -762,6 +825,7 @@ declare
   v_reports   integer;
   v_audits    integer;
   v_photos    integer;
+  v_rotated   boolean := false;
 begin
   -- Oude opgeruimde/verwijderde meldingen verdwijnen; open meldingen blijven.
   with gone as (
@@ -788,9 +852,24 @@ begin
   )
   select count(*) into v_photos from stuck;
 
+  -- Salt roteren zodra hij ouder is dan de auditbewaartermijn: op dat moment
+  -- zijn alle rijen die met de oude salt gehasht zijn toch al gewist.
+  if coalesce(
+       (select (value #>> '{}')::timestamptz from public.app_config
+        where key = 'ip_hash_salt_rotated_at'),
+       'epoch'::timestamptz
+     ) < now() - make_interval(days => v_audit) then
+    insert into public.app_config (key, value) values
+      ('ip_hash_salt', to_jsonb(gen_random_uuid()::text)),
+      ('ip_hash_salt_rotated_at', to_jsonb(now()))
+    on conflict (key) do update set value = excluded.value, updated_at = now();
+    v_rotated := true;
+  end if;
+
   return jsonb_build_object('reports_deleted', v_reports,
                             'audit_deleted', v_audits,
-                            'photos_failed', v_photos);
+                            'photos_failed', v_photos,
+                            'salt_rotated', v_rotated);
 end;
 $$;
 

@@ -19,6 +19,13 @@ insert into public.app_config (key, value)
 values ('enforce_service_area', 'true'::jsonb)
 on conflict (key) do nothing;
 
+-- Salt voor de IP-hash. Wordt maandelijks geroteerd door purge_old_data().
+-- Staat bewust in de databank en niet in de code: hij mag nooit in git komen.
+insert into public.app_config (key, value)
+values ('ip_hash_salt', to_jsonb(gen_random_uuid()::text)),
+       ('ip_hash_salt_rotated_at', to_jsonb(now()))
+on conflict (key) do nothing;
+
 -- ---------------------------------------------------------------------------
 -- Geplande taken (pg_cron)
 -- ---------------------------------------------------------------------------
