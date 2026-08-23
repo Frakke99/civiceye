@@ -1,0 +1,471 @@
+openapi: 3.1.0
+info:
+  title: Global Cleanup API
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  description: |
+    Anonieme meldkaart voor zwerfafval. De API is de PostgREST-laag van
+    Supabase: elke operatie is een Postgres-functie die als RPC-endpoint
+    beschikbaar is, plus enkele Edge Functions voor foto's en export.
+
+    Autorisatie gebeurt in de database (RLS + functie-grants), niet in deze
+    specificatie. De `apikey` is publiek en geeft op zichzelf geen toegang.
+
+    Volledige uitleg: docs/04-api-contract.md
+servers:
+  - url: https://{projectRef}.supabase.co
+    variables:
+      projectRef:
+        default: your-project-ref
+        description: Supabase-projectreferentie (verschilt per omgeving)
+
+security:
+  - anonKey: []
+    bearerAuth: []
+
+tags:
+  - name: kaart
+    description: Lezen — werkt met een anonieme sessie
+  - name: melden
+    description: Schrijven — vereist een (anonieme) ingelogde gebruiker
+  - name: moderatie
+    description: Enkel voor moderatoren
+  - name: fotos
+    description: Edge Functions rond de fotopijplijn
+
+paths:
+  /rest/v1/rpc/map_reports:
+    post:
+      tags: [kaart]
+      summary: Meldingen in een kaartvenster, als punten of clusters
+      description: |
+        Bij `zoom >= 14` losse meldingen (max 600, nieuwste eerst), daaronder
+        server-side clusters. Antwoord is altijd dezelfde vorm; `is_cluster`
+        geeft aan wat je krijgt.
+      operationId: mapReports
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [min_lng, min_lat, max_lng, max_lat, zoom]
+              properties:
+                min_lng: { type: number, format: double, minimum: -180, maximum: 180 }
+                min_lat: { type: number, format: double, minimum: -90, maximum: 90 }
+                max_lng: { type: number, format: double, minimum: -180, maximum: 180 }
+                max_lat: { type: number, format: double, minimum: -90, maximum: 90 }
+                zoom:    { type: integer, minimum: 1, maximum: 22 }
+                kinds:
+                  type: array
+                  items: { $ref: '#/components/schemas/ReportKind' }
+                  description: null of leeg = alle types
+                include_cleaned: { type: boolean, default: false }
+            example:
+              min_lng: 4.39
+              min_lat: 51.21
+              max_lng: 4.43
+              max_lat: 51.24
+              zoom: 15
+              kinds: [litter]
+              include_cleaned: false
+      responses:
+        '200':
+          description: Markers voor het venster
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MapMarker' }
+        '400':
+          $ref: '#/components/responses/DomainError'
+
+  /rest/v1/rpc/report_details:
+    post:
+      tags: [kaart]
+      summary: Detail van één melding, met foto's
+      operationId: reportDetails
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [p_report_id]
+              properties:
+                p_report_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: De melding
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportDetails' }
+        '400':
+          $ref: '#/components/responses/DomainError'
+
+  /rest/v1/rpc/nearby_reports:
+    post:
+      tags: [kaart]
+      summary: Bestaande meldingen dicht bij een punt
+      description: |
+        Aan te roepen vóór het posten, zodat de app "bevestigen" kan voorstellen
+        in plaats van een duplicaat te laten maken.
+      operationId: nearbyReports
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [p_lat, p_lng]
+              properties:
+                p_lat: { type: number, format: double }
+                p_lng: { type: number, format: double }
+                p_radius_m: { type: integer, default: 50, minimum: 5, maximum: 500 }
+      responses:
+        '200':
+          description: Tot 20 meldingen, gesorteerd op afstand
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    report_id:  { type: string, format: uuid }
+                    kind:       { $ref: '#/components/schemas/ReportKind' }
+                    size:       { $ref: '#/components/schemas/LitterSize' }
+                    distance_m: { type: number, format: double }
+                    created_at: { type: string, format: date-time }
+                    has_photo:  { type: boolean }
+        '400':
+          $ref: '#/components/responses/DomainError'
+
+  /rest/v1/rpc/create_report:
+    post:
+      tags: [melden]
+      summary: Een melding posten
+      description: |
+        Idempotent op `p_client_ref`: onbeperkt herhaalbaar met hetzelfde
+        resultaat. Dat maakt de offline outbox veilig.
+
+        Twee antwoorden zijn géén fout maar vragen wel ander UI-gedrag:
+        `idempotent: true` (retry van dezelfde melding) en
+        `deduplicated: true` (jij meldde dit al binnen 15 m in de laatste 24 u).
+      operationId: createReport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [p_client_ref, p_lat, p_lng]
+              properties:
+                p_client_ref: { type: string, format: uuid, description: Door de app aangemaakt; bepaalt de identiteit van de melding }
+                p_lat: { type: number, format: double, minimum: -90, maximum: 90 }
+                p_lng: { type: number, format: double, minimum: -180, maximum: 180 }
+                p_kind: { $ref: '#/components/schemas/ReportKind' }
+                p_size: { $ref: '#/components/schemas/LitterSize' }
+                p_note: { type: [string, "null"], maxLength: 280 }
+                p_accuracy_m: { type: [number, "null"], description: GPS-nauwkeurigheid in meter }
+                p_photo_path: { type: [string, "null"], description: storage_path uit /functions/v1/upload-url }
+                p_client: { type: string, enum: [ios, android, web, unknown] }
+                p_app_version: { type: [string, "null"] }
+            example:
+              p_client_ref: 9f1c2b7e-0f3a-4a1d-9c11-6f2f7a5b1c3d
+              p_lat: 51.2194
+              p_lng: 4.4025
+              p_kind: litter
+              p_size: bag
+              p_note: Zak naast het bankje
+              p_accuracy_m: 8.5
+              p_client: ios
+              p_app_version: 1.0.0
+      responses:
+        '200':
+          description: Melding aangemaakt, of de bestaande melding teruggegeven
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id:     { type: string, format: uuid }
+                  photo_id:      { type: [string, "null"], format: uuid }
+                  status:        { $ref: '#/components/schemas/ReportStatus' }
+                  created_at:    { type: string, format: date-time }
+                  nearby_count:  { type: integer, description: Meldingen van anderen binnen 30 m }
+                  idempotent:    { type: boolean }
+                  deduplicated:  { type: boolean }
+        '400':
+          $ref: '#/components/responses/DomainError'
+
+  /rest/v1/rpc/flag_report:
+    post:
+      tags: [melden]
+      summary: Een melding rapporteren
+      description: |
+        Bij het bereiken van `auto_quarantine_flags` (standaard 3) — of
+        onmiddellijk bij `private_person` — verdwijnt de melding van de kaart
+        en komt ze in de moderatiewachtrij.
+      operationId: flagReport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [p_report_id, p_reason]
+              properties:
+                p_report_id: { type: string, format: uuid }
+                p_reason:
+                  type: string
+                  enum: [not_there, wrong_location, inappropriate, spam, private_person, other]
+                p_detail: { type: [string, "null"], maxLength: 280 }
+      responses:
+        '200':
+          description: Nieuwe flag-stand
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id:  { type: string, format: uuid }
+                  flag_count: { type: integer }
+                  status:     { $ref: '#/components/schemas/ReportStatus' }
+        '400':
+          $ref: '#/components/responses/DomainError'
+
+  /rest/v1/rpc/confirm_report:
+    post:
+      tags: [melden]
+      summary: Bevestigen dat het afval er nog ligt
+      operationId: confirmReport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [p_report_id]
+              properties:
+                p_report_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Nieuwe bevestigingsstand
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id:     { type: string, format: uuid }
+                  confirm_count: { type: integer }
+        '400':
+          $ref: '#/components/responses/DomainError'
+
+  /rest/v1/rpc/mark_cleaned:
+    post:
+      tags: [melden]
+      summary: Melding als opgeruimd markeren (fase 2)
+      description: |
+        Staat uit tot `app_config.cleanups_enabled` op true gaat; daarvoor komt
+        `feature_disabled` terug. Vereist dat je binnen 75 m van de melding
+        staat. Punten worden server-side bepaald.
+      operationId: markCleaned
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [p_report_id, p_lat, p_lng]
+              properties:
+                p_report_id:  { type: string, format: uuid }
+                p_lat:        { type: number, format: double }
+                p_lng:        { type: number, format: double }
+                p_photo_path: { type: [string, "null"] }
+      responses:
+        '200':
+          description: Opgeruimd, met toegekende punten
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id:      { type: string, format: uuid }
+                  points_awarded: { type: integer }
+                  distance_m:     { type: number }
+        '400':
+          $ref: '#/components/responses/DomainError'
+
+  /rest/v1/rpc/moderate_report:
+    post:
+      tags: [moderatie]
+      summary: Melding herstellen, verbergen of verwijderen
+      operationId: moderateReport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [p_report_id, p_action]
+              properties:
+                p_report_id: { type: string, format: uuid }
+                p_action: { type: string, enum: [restore, remove, quarantine] }
+                p_reason: { type: [string, "null"] }
+      responses:
+        '200':
+          description: Nieuwe status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id: { type: string, format: uuid }
+                  status:    { $ref: '#/components/schemas/ReportStatus' }
+        '400':
+          $ref: '#/components/responses/DomainError'
+
+  /functions/v1/upload-url:
+    post:
+      tags: [fotos]
+      summary: Signed upload-URL voor één foto
+      description: |
+        De app uploadt rechtstreeks naar `photo-inbox` (privé) en geeft het
+        teruggekregen `storage_path` mee aan `create_report`. De bucket is niet
+        leesbaar; publiceren gebeurt pas na de veiligheidsscan.
+      operationId: createUploadUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content_type, bytes]
+              properties:
+                content_type: { type: string, enum: [image/jpeg, image/webp] }
+                bytes: { type: integer, maximum: 5242880 }
+      responses:
+        '200':
+          description: Upload-URL, 10 minuten geldig
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upload_url:   { type: string, format: uri }
+                  storage_path: { type: string }
+                  expires_at:   { type: string, format: date-time }
+        '429':
+          description: Te veel uploads (30/uur/gebruiker)
+
+  /functions/v1/export-area:
+    get:
+      tags: [kaart]
+      summary: Export voor gemeenten en afvalintercommunales
+      operationId: exportArea
+      parameters:
+        - name: bbox
+          in: query
+          required: true
+          schema: { type: string }
+          description: "min_lng,min_lat,max_lng,max_lat"
+        - name: format
+          in: query
+          schema: { type: string, enum: [geojson, csv], default: geojson }
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+        - name: municipality
+          in: query
+          schema: { type: string, description: NIS-code }
+      responses:
+        '200':
+          description: Meldingen in het gebied
+        '401':
+          description: Ontbrekende of ongeldige gemeente-API-key
+
+components:
+  securitySchemes:
+    anonKey:
+      type: apiKey
+      in: header
+      name: apikey
+      description: Publieke Supabase anon key; geeft op zichzelf geen toegang
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT van de (anonieme) gebruikerssessie
+
+  schemas:
+    ReportKind:
+      type: string
+      enum: [litter, hazard, dead_animal, fallen_tree, damaged_furniture, other]
+      description: v1 aanvaardt enkel `litter`; de rest komt in fase 3
+    LitterSize:
+      type: [string, "null"]
+      enum: [piece, bag, heap, null]
+      description: papiertje / zak / afvalhoop
+    ReportStatus:
+      type: string
+      enum: [published, quarantined, cleaned, removed]
+    MapMarker:
+      type: object
+      properties:
+        is_cluster:  { type: boolean }
+        lng:         { type: number, format: double }
+        lat:         { type: number, format: double }
+        point_count: { type: integer, description: 1 voor een losse melding }
+        report_id:   { type: [string, "null"], format: uuid, description: null bij een cluster }
+        kind:        { $ref: '#/components/schemas/ReportKind' }
+        size:        { $ref: '#/components/schemas/LitterSize' }
+        has_photo:   { type: boolean }
+        created_at:  { type: string, format: date-time }
+    ReportDetails:
+      type: object
+      properties:
+        report_id:     { type: string, format: uuid }
+        kind:          { $ref: '#/components/schemas/ReportKind' }
+        size:          { $ref: '#/components/schemas/LitterSize' }
+        lat:           { type: number, format: double }
+        lng:           { type: number, format: double }
+        accuracy_m:    { type: [number, "null"] }
+        note:          { type: [string, "null"] }
+        status:        { $ref: '#/components/schemas/ReportStatus' }
+        created_at:    { type: string, format: date-time }
+        cleaned_at:    { type: [string, "null"], format: date-time }
+        confirm_count: { type: integer }
+        is_mine:       { type: boolean }
+        photos:
+          type: array
+          items:
+            type: object
+            properties:
+              bucket:   { type: string, example: photo-public }
+              path:     { type: string }
+              width:    { type: [integer, "null"] }
+              height:   { type: [integer, "null"] }
+              blurhash: { type: [string, "null"] }
+              status:   { type: string, enum: [pending, safe, flagged, failed] }
+      description: |
+        Bevat bewust géén melderidentiteit. `is_mine` is het enige signaal, en
+        dat wordt server-side uit de JWT bepaald.
+
+  responses:
+    DomainError:
+      description: |
+        Domeinfout. `message` is een stabiele machinecode — zie de foutcodetabel
+        in docs/04-api-contract.md. De app vertaalt de code zelf, zodat teksten
+        geen backend-release nodig hebben.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:    { type: string, example: P0001 }
+              message: { type: string, example: rate_limited }
+              details: { type: [string, "null"], example: hour }
+              hint:    { type: [string, "null"] }

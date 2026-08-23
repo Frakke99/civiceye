@@ -283,7 +283,8 @@ insert into public.app_config (key, value) values
   ('retention_days',           '365'::jsonb),
   ('audit_retention_days',     '30'::jsonb),
   ('cleanups_enabled',         'false'::jsonb),
-  ('enabled_kinds',            '["litter"]'::jsonb);
+  ('enabled_kinds',            '["litter"]'::jsonb),
+  ('min_supported_app_version', '"1.0.0"'::jsonb);
 
 -- ---------------------------------------------------------------------------
 -- updated_at bijhouden
