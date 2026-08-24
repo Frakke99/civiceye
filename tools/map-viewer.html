@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Global Cleanup — kaartviewer (diagnostisch)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<!-- Bewust vóór het inline script: als deze CDN geblokkeerd is of de gebruiker
+     offline zit, blijft window.maplibregl undefined en valt de viewer terug op
+     lijstmodus in plaats van te breken. -->
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root { color-scheme: light dark; --bg:#fff; --fg:#111; --muted:#666; --line:#e5e5e5; --accent:#1a7f4b; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#15171a; --fg:#f2f2f2; --muted:#9aa0a6; --line:#2c3035; --accent:#4ade80; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display:flex; flex-direction:column; }
+  header { padding:10px 14px; border-bottom:1px solid var(--line); display:flex;
+    gap:10px; align-items:center; flex-wrap:wrap; }
+  header strong { font-size:14px; }
+  .badge { font-size:11px; padding:2px 7px; border:1px solid var(--line);
+    border-radius:99px; color:var(--muted); }
+  main { flex:1; position:relative; overflow:auto; }
+  #map { position:absolute; inset:0; }
+  #fallback { padding:14px; max-width:760px; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  footer { border-top:1px solid var(--line); padding:8px 14px; font-size:12px;
+    color:var(--muted); display:flex; gap:14px; flex-wrap:wrap; }
+  form { padding:16px; max-width:520px; display:grid; gap:10px; }
+  label { display:grid; gap:4px; font-size:13px; color:var(--muted); }
+  input { padding:9px 10px; font-size:15px; border:1px solid var(--line);
+    border-radius:8px; background:var(--bg); color:var(--fg); }
+  button { padding:10px 14px; font-size:15px; border:0; border-radius:8px;
+    background:var(--accent); color:#fff; font-weight:600; min-height:44px; }
+  .note { color:var(--muted); font-size:13px; }
+  .err { color:#c0392b; white-space:pre-wrap; font-family:ui-monospace, monospace;
+    font-size:12px; }
+  @media (prefers-color-scheme: dark) { .err { color:#ff8a80; } }
+</style>
+</head>
+<body>
+
+<!--
+  Diagnostische kaartviewer. GEEN vervanging van de app: alleen lezen, geen
+  melden, geen foto's, geen offline. Bedoeld om op elk toestel binnen een
+  minuut te zien of het backend werkt en hoe snel het antwoordt.
+
+  Openen kan op drie manieren:
+    1. lokaal:  python3 -m http.server 8000  →  http://<jouw-ip>:8000/tools/map-viewer.html
+    2. hosten:  zet dit bestand op Vercel/Netlify/GitHub Pages
+    3. rechtstreeks: file:// werkt ook, maar dan blokkeert de browser mogelijk CORS
+
+  De anon key hoort publiek te zijn (hij zit in elke app-bundle), dus hem hier
+  invullen is veilig. Vul NOOIT de service_role-key in.
+-->
+
+<header>
+  <strong>Global Cleanup</strong>
+  <span class="badge">diagnostische viewer — alleen lezen</span>
+  <span class="badge" id="mode">…</span>
+</header>
+
+<main>
+  <form id="setup" hidden>
+    <p class="note">
+      Vul je Supabase-project in. Alles blijft in de localStorage van dit
+      toestel; er wordt niets naar elders gestuurd.
+    </p>
+    <label>Supabase URL
+      <input id="url" placeholder="https://xxxxx.supabase.co" autocapitalize="off" spellcheck="false">
+    </label>
+    <label>Anon key (publiek — niet de service_role key)
+      <input id="key" placeholder="eyJhbGciOi..." autocapitalize="off" spellcheck="false">
+    </label>
+    <label>MapTiler key (optioneel — zonder key krijg je een lijst i.p.v. een kaart)
+      <input id="tiles" placeholder="leeg laten mag" autocapitalize="off" spellcheck="false">
+    </label>
+    <button type="submit">Verbinden</button>
+    <p class="note" id="reset" hidden><a href="#" id="clear">instellingen wissen</a></p>
+  </form>
+
+  <div id="map" hidden></div>
+  <div id="fallback" hidden></div>
+</main>
+
+<footer>
+  <span id="stat-count">—</span>
+  <span id="stat-time">—</span>
+  <span id="stat-zoom">—</span>
+</footer>
+
+<script>
+const LS = 'gc-viewer-config';
+const $ = (id) => document.getElementById(id);
+
+const cfg = (() => {
+  try { return JSON.parse(localStorage.getItem(LS) || 'null'); } catch { return null; }
+})();
+
+// Startvenster: Antwerpen en omgeving.
+let view = { lng: 4.4025, lat: 51.2194, zoom: 12 };
+
+function bboxFromView(v, aspect) {
+  // Ruwe omzetting van zoom naar een venster in graden. Goed genoeg voor een
+  // diagnostische viewer; de echte app laat MapLibre de bbox bepalen.
+  const spanLng = 360 / Math.pow(2, v.zoom);
+  const spanLat = spanLng / Math.max(aspect || 1, 0.2) * 0.6;
+  return {
+    min_lng: v.lng - spanLng / 2, max_lng: v.lng + spanLng / 2,
+    min_lat: v.lat - spanLat / 2, max_lat: v.lat + spanLat / 2,
+  };
+}
+
+async function rpc(name, body) {
+  const res = await fetch(`${cfg.url.replace(/\/$/, '')}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: {
+      apikey: cfg.key,
+      Authorization: `Bearer ${cfg.key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch { /* laat json null */ }
+  if (!res.ok) {
+    const msg = (json && (json.message || json.hint)) || text || `HTTP ${res.status}`;
+    throw new Error(`${name}: ${msg}`);
+  }
+  return json;
+}
+
+async function loadMarkers() {
+  const aspect = window.innerWidth / Math.max(window.innerHeight - 100, 1);
+  const bbox = bboxFromView(view, aspect);
+  const t0 = performance.now();
+  const rows = await rpc('map_reports', {
+    ...bbox, zoom: Math.round(view.zoom), include_cleaned: false,
+  });
+  const ms = Math.round(performance.now() - t0);
+  const totaal = rows.reduce((n, r) => n + (r.point_count || 1), 0);
+  $('stat-count').textContent = `${rows.length} markers · ${totaal} meldingen`;
+  $('stat-time').textContent = `map_reports: ${ms} ms`;
+  $('stat-zoom').textContent = `zoom ${Math.round(view.zoom)}`;
+  return rows;
+}
+
+const ICON = { piece: '📄', bag: '🛍️', heap: '🗑️' };
+
+function renderList(rows) {
+  const el = $('fallback');
+  el.hidden = false;
+  if (!rows.length) {
+    el.innerHTML = `<p class="note">Verbinding werkt, maar er staan geen meldingen
+      in dit venster. Laad <code>db/seed/dev_seed.sql</code> voor testdata.</p>`;
+    return;
+  }
+  const rijen = rows.slice(0, 100).map((r) => `
+    <tr>
+      <td>${r.is_cluster ? '⬤ cluster' : (ICON[r.size] || '📍')}</td>
+      <td>${r.point_count}</td>
+      <td>${r.is_cluster ? '—' : (r.size || r.kind)}</td>
+      <td>${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</td>
+      <td>${r.has_photo ? 'ja' : '—'}</td>
+      <td>${new Date(r.created_at).toLocaleDateString('nl-BE')}</td>
+    </tr>`).join('');
+  el.innerHTML = `
+    <p class="note">Geen MapTiler-key ingevuld, dus geen kaartlaag. De data komt
+    wel binnen — dit bewijst dat het backend werkt.</p>
+    <table>
+      <thead><tr><th></th><th>Aantal</th><th>Type</th><th>Positie</th>
+      <th>Foto</th><th>Gemeld</th></tr></thead>
+      <tbody>${rijen}</tbody>
+    </table>`;
+}
+
+function toGeoJSON(rows) {
+  return {
+    type: 'FeatureCollection',
+    features: rows.map((r) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [r.lng, r.lat] },
+      properties: {
+        label: r.is_cluster ? String(r.point_count) : (ICON[r.size] || '📍'),
+        is_cluster: !!r.is_cluster,
+        report_id: r.report_id || '',
+      },
+    })),
+  };
+}
+
+async function startMap() {
+  $('map').hidden = false;
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: `https://api.maptiler.com/maps/outdoor-v2/style.json?key=${cfg.tiles}`,
+    center: [view.lng, view.lat],
+    zoom: view.zoom,
+  });
+  map.addControl(new maplibregl.NavigationControl(), 'top-right');
+  map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), 'top-right');
+
+  map.on('load', async () => {
+    map.addSource('reports', { type: 'geojson', data: toGeoJSON([]) });
+    map.addLayer({
+      id: 'reports-circle', type: 'circle', source: 'reports',
+      paint: {
+        'circle-radius': ['case', ['get', 'is_cluster'], 18, 11],
+        'circle-color': ['case', ['get', 'is_cluster'], '#1a7f4b', '#e8a33d'],
+        'circle-stroke-width': 2, 'circle-stroke-color': '#fff',
+      },
+    });
+    map.addLayer({
+      id: 'reports-label', type: 'symbol', source: 'reports',
+      layout: { 'text-field': ['get', 'label'], 'text-size': 13 },
+      paint: { 'text-color': '#fff' },
+    });
+
+    const refresh = async () => {
+      const c = map.getCenter();
+      view = { lng: c.lng, lat: c.lat, zoom: map.getZoom() };
+      try {
+        map.getSource('reports').setData(toGeoJSON(await loadMarkers()));
+      } catch (e) {
+        $('stat-count').textContent = e.message;
+      }
+    };
+    map.on('moveend', refresh);
+    await refresh();
+  });
+
+  map.on('click', 'reports-circle', async (e) => {
+    const id = e.features[0].properties.report_id;
+    if (!id) return;
+    try {
+      const d = await rpc('report_details', { p_report_id: id });
+      new maplibregl.Popup({ closeButton: true })
+        .setLngLat([d.lng, d.lat])
+        .setHTML(`<strong>${d.size || d.kind}</strong><br>
+          ${d.note ? d.note + '<br>' : ''}
+          gemeld ${new Date(d.created_at).toLocaleString('nl-BE')}<br>
+          ${d.photos.length ? d.photos.length + ' foto(s)' : 'geen foto'}<br>
+          nauwkeurigheid: ${d.accuracy_m ?? '?'} m`)
+        .addTo(map);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+}
+
+async function start() {
+  const heeftKaart = !!(cfg.tiles && window.maplibregl);
+  $('mode').textContent = heeftKaart ? 'kaartmodus' : 'lijstmodus';
+  try {
+    if (heeftKaart) {
+      await startMap();
+    } else {
+      renderList(await loadMarkers());
+    }
+  } catch (e) {
+    $('fallback').hidden = false;
+    $('fallback').innerHTML =
+      `<p class="err">${e.message}</p>
+       <p class="note">Controleer de URL en de anon key, en of de migraties
+       toegepast zijn. <a href="#" id="again">Instellingen aanpassen</a></p>`;
+    document.getElementById('again')?.addEventListener('click', (ev) => {
+      ev.preventDefault(); localStorage.removeItem(LS); location.reload();
+    });
+  }
+}
+
+if (cfg && cfg.url && cfg.key) {
+  start();
+} else {
+  const form = $('setup');
+  form.hidden = false;
+  $('mode').textContent = 'niet verbonden';
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    localStorage.setItem(LS, JSON.stringify({
+      url: $('url').value.trim(), key: $('key').value.trim(), tiles: $('tiles').value.trim(),
+    }));
+    location.reload();
+  });
+}
+</script>
+</body>
+</html>

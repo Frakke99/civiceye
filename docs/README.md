@@ -43,3 +43,9 @@ probleem, en wat doen we dan").
 - `db/seed/dev_seed.sql` — testdata: ~200 meldingen rond Antwerpen/Kempen
 - `api/openapi.yaml` — machineleesbaar API-contract
 - `.github/workflows/` — CI (lint/test/migratie-check) en release-pijplijn
+- `scripts/smoke-api.sh` — controleert een echt Supabase-project, inclusief of de
+  publieke anon key niet kan posten en of de audittabel dicht is
+- `tools/map-viewer.html` — diagnostische kaartviewer in één bestand, zonder
+  build, om vanaf elk toestel te zien of het backend werkt
+
+Zie **[../QUICKSTART.md](../QUICKSTART.md)** om dit allemaal zelf te draaien.

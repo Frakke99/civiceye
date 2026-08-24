@@ -77,6 +77,16 @@ jobs:
           node-version: '22'
       - run: npx --yes @redocly/cli@latest lint api/openapi.yaml
 
+  # smoke-api.sh vangt beveiligingsfouten op een echt project. Een smoketest die
+  # per ongeluk altijd "ok" zegt is gevaarlijker dan geen smoketest, dus testen
+  # we hem tegen een nagemaakte API in beide richtingen.
+  smoke-script:
+    name: Smoketest-script zelf testen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/test-smoke-api.sh
+
   app:
     name: Lint, types en unittests
     runs-on: ubuntu-latest

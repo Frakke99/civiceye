@@ -22,6 +22,7 @@ CI-workflows, testplan).
 | ------------------------------------------ | ----------------------------------------------------- |
 | Snappen wat we bouwen en wat níet          | [docs/01-product-scope.md](docs/01-product-scope.md)  |
 | De architectuur in één beeld               | [docs/02-architectuur-overzicht.md](docs/02-architectuur-overzicht.md) |
+| **Dit nu zelf uitproberen**                | **[QUICKSTART.md](QUICKSTART.md)**                    |
 | Beginnen met bouwen                        | [docs/13-implementatieplan.md](docs/13-implementatieplan.md) |
 | Testen op verschillende toestellen         | [docs/10-rollout-en-testplan.md](docs/10-rollout-en-testplan.md) |
 | Weten waarom een keuze zo gemaakt is       | [docs/adr/](docs/adr/)                                |
