@@ -159,6 +159,30 @@ Beperkingen die we accepteren: geen achtergrondsync van de outbox (enkel zolang
 het tabblad open is), en GPS-nauwkeurigheid is op desktop slechter. De web-app
 toont daarom een expliciete hint om de pin te controleren.
 
+**De maplibre-worker moet meegeleverd worden.** maplibre-gl parseert GeoJSON in
+een web worker en verwijst daarnaar met `new Worker(new URL(...,
+import.meta.url))`. Metro begrijpt die vorm niet en bundelt het bestand niet
+mee: de browser vraagt het op, krijgt `index.html` terug, en de kaartbron raakt
+nooit "geladen". Het gevolg is een **lege kaart zonder enige foutmelding** — de
+markers zitten wel in de state, maar worden nooit getekend.
+
+`scripts/prepare-web-assets.mjs` kopieert de worker naar `public/maplibre/`, en
+`MapCanvas.web.tsx` wijst er met `setWorkerUrl` naartoe. Elk script dat een
+web-build maakt (`pnpm web`, `pnpm web:build`, `pnpm e2e:build`) draait die
+voorbereiding. Bouw je met een eigen `expo export`-commando, doe dan eerst
+`pnpm prepare:web`.
+
+De end-to-end test controleert dit expliciet: hij vraagt de kaart hoeveel
+markers ze getekend heeft en of de worker als javascript geserveerd wordt.
+Alleen kijken of er een canvas bestaat, was niet genoeg — die test stond groen
+terwijl de kaart leeg was.
+
+**Labels vragen een echte kaartstijl.** Een symbol-laag heeft glyphs (fonts)
+nodig, en die komen uit de stijl. Zonder MapTiler-key laten we de tekstlaag weg:
+een stijl zónder glyphs bereikt nooit de toestand "geladen" zodra er toch tekst
+in staat, en dan verdwijnt álles. Je ziet dan clusterbollen op grootte, met het
+totaal in de balk bovenaan.
+
 **Hosting:** de web-build is een SPA (`web.output: 'single'`). Elke host moet
 onbekende paden naar `index.html` laten wijzen, anders werkt een directe link
 naar `/report/<id>` niet. Op Vercel en Netlify is dat de standaard-SPA-rewrite;

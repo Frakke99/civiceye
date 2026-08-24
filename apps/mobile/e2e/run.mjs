@@ -14,44 +14,15 @@
  * device-matrix in docs/10-rollout-en-testplan.md.
  */
 import { chromium } from 'playwright';
-import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { start } from './mock-supabase.mjs';
+import { serveStatic } from './static-server.mjs';
 
 const HIER = path.dirname(new URL(import.meta.url).pathname);
 const DIST = path.resolve(HIER, '..', 'dist');
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-               '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml',
-               '.ttf': 'font/ttf', '.woff2': 'font/woff2', '.map': 'application/json' };
-
-// Statische server voor de geëxporteerde app (met Expo-router fallbacks).
-const web = http.createServer((req, res) => {
-  let p = decodeURIComponent(req.url.split('?')[0]);
-  let file = path.join(DIST, p);
-  if (p === '/' ) file = path.join(DIST, 'index.html');
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-    const alt = path.join(DIST, p + '.html');
-    if (fs.existsSync(alt)) {
-      file = alt;
-    } else {
-      // Dynamische route: Expo exporteert die als report/[id].html. Zonder deze
-      // rewrite serveer je index.html en krijg je een hydratiefout — precies wat
-      // een verkeerd geconfigureerde host doet.
-      const delen = p.split('/').filter(Boolean);
-      const dyn = path.join(DIST, ...delen.slice(0, -1), '[id].html');
-      file = fs.existsSync(dyn) ? dyn : path.join(DIST, 'index.html');
-    }
-  }
-  try {
-    const body = fs.readFileSync(file);
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' });
-    res.end(body);
-  } catch (e) {
-    res.writeHead(500, { 'Content-Type': 'text/plain' });
-    res.end(String(e));
-  }
-}).listen(8810);
+// Statische server met SPA-rewrite (zie static-server.mjs).
+const web = serveStatic(DIST, 8810);
 
 const api = start(8811);
 
@@ -110,8 +81,36 @@ check('badge sommeert clusters (23+7=30 meldingen)', /30 meldingen/.test(badge ?
   (badge ?? '').match(/\d+ meldingen/)?.[0] ?? 'niet gevonden');
 
 // --- 5. de kaart rendert echt ---
+// Een canvas dat bestaat zegt niets: eerder tekende de kaart niets omdat de
+// web worker van maplibre ontbrak, en die test stond toch op groen. Daarom
+// vragen we de kaart nu zelf wat hij getekend heeft.
 const canvas = await page.locator('canvas.maplibregl-canvas').count();
 check('MapLibre tekent een canvas', canvas === 1, `${canvas} canvas-elementen`);
+
+const kaart = await page.evaluate(() => {
+  const m = globalThis.__gcMap;
+  if (!m) return { fout: 'geen kaartinstantie' };
+  return {
+    styleLoaded: m.isStyleLoaded(),
+    lagen: (m.getStyle()?.layers ?? []).map((l) => l.id),
+    gerenderd: m.queryRenderedFeatures({ layers: ['meldingen-bel'] }).length,
+  };
+});
+check('de kaartstijl raakt volledig geladen', kaart.styleLoaded === true,
+  JSON.stringify(kaart));
+check('er staan markers op de kaart, niet alleen in de state',
+  (kaart.gerenderd ?? 0) > 0, `${kaart.gerenderd} gerenderde markers`);
+
+// De worker van maplibre wordt door Metro niet meegebundeld en komt uit
+// public/. Wordt hij door de SPA-fallback als HTML geserveerd, dan parseert de
+// kaartbron nooit en blijft de kaart leeg.
+const worker = await page.evaluate(async () => {
+  const res = await fetch('/maplibre/maplibre-gl-worker.mjs');
+  const tekst = await res.text();
+  return { status: res.status, isHtml: tekst.trimStart().toLowerCase().startsWith('<!doctype') };
+});
+check('de maplibre-worker wordt als javascript geserveerd',
+  worker.status === 200 && !worker.isHtml, JSON.stringify(worker));
 
 // --- 6. de meldknop staat er, met de juiste raakvlakhoogte ---
 const knop = page.getByRole('button', { name: 'Afval melden' });

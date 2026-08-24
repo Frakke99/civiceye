@@ -242,3 +242,5 @@ Zie [docs/13-implementatieplan.md](docs/13-implementatieplan.md).
 | Directe link naar `/report/<id>` geeft 404 op je host | SPA-rewrite ontbreekt | alle paden naar `index.html` laten wijzen |
 | `Ontbrekende configuratie: EXPO_PUBLIC_SUPABASE_URL` | geen `.env` in `apps/mobile` | `cp apps/mobile/.env.example apps/mobile/.env` en invullen |
 | Kaart blijft grijs, markers wel zichtbaar | geen MapTiler-key | verwacht gedrag; vul `EXPO_PUBLIC_MAPTILER_KEY` in |
+| Kaart is leeg terwijl de balk "N meldingen" toont | de maplibre-worker ontbreekt in de build | `pnpm prepare:web` en opnieuw bouwen; gebruik `pnpm web:build` in plaats van `expo export` |
+| Clusters tonen geen getal | zonder MapTiler-key is er geen font | verwacht gedrag; bollen verschillen wel in grootte |

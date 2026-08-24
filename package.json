@@ -12,13 +12,15 @@
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "pnpm --filter @gc/mobile start",
-    "web": "pnpm --filter @gc/mobile exec expo start --web",
-    "web:build": "pnpm --filter @gc/mobile exec expo export --platform web --output-dir dist",
+    "start": "pnpm prepare:web && pnpm --filter @gc/mobile start",
+    "web": "pnpm prepare:web && pnpm --filter @gc/mobile exec expo start --web",
+    "web:build": "pnpm prepare:web && pnpm --filter @gc/mobile exec expo export --platform web --output-dir dist",
     "db:test": "./db/test/run_tests.sh",
     "db:parity": "./scripts/check-points-parity.sh",
-    "e2e:build": "cd apps/mobile && EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:8811 EXPO_PUBLIC_SUPABASE_ANON_KEY=e2e-anon-key EXPO_PUBLIC_ENV=dev EXPO_PUBLIC_MAPTILER_KEY= pnpm exec expo export --platform web --output-dir dist --clear",
-    "test:e2e": "node apps/mobile/e2e/run.mjs"
+    "e2e:build": "pnpm prepare:web && cd apps/mobile && EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:8811 EXPO_PUBLIC_SUPABASE_ANON_KEY=e2e-anon-key EXPO_PUBLIC_ENV=dev EXPO_PUBLIC_MAPTILER_KEY= pnpm exec expo export --platform web --output-dir dist --clear",
+    "test:e2e": "node apps/mobile/e2e/run.mjs",
+    "demo": "node apps/mobile/e2e/serve-demo.mjs",
+    "prepare:web": "node scripts/prepare-web-assets.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

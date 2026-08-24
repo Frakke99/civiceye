@@ -9,7 +9,7 @@
 import { useCallback, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Bbox } from '@gc/shared';
-import { mapStyle } from './style';
+import { mapStyle, styleHasLabels } from './style';
 import { toMarkerCollection } from './markers';
 import { MapFallback } from './MapFallback';
 import type { MapCanvasProps } from './types';
@@ -115,16 +115,20 @@ export function MapCanvas({
               'circle-opacity': 0.92,
             }}
           />
-          <Layer
-            id="meldingen-label"
-            type="symbol"
-            layout={{
-              'text-field': ['get', 'label'],
-              'text-size': 13,
-              'text-allow-overlap': true,
-            }}
-            paint={{ 'text-color': '#ffffff' }}
-          />
+          {/* Alleen met een echte stijl: zonder glyphs blijft de stijl "niet
+              geladen" en tekent de kaart niets meer. Zie style.ts. */}
+          {styleHasLabels ? (
+            <Layer
+              id="meldingen-label"
+              type="symbol"
+              layout={{
+                'text-field': ['get', 'label'],
+                'text-size': 13,
+                'text-allow-overlap': true,
+              }}
+              paint={{ 'text-color': '#ffffff' }}
+            />
+          ) : null}
         </GeoJSONSource>
       </Map>
     </View>

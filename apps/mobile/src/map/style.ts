@@ -18,6 +18,21 @@ export const BLANK_STYLE = {
   ],
 };
 
+/**
+ * Kan de kaart tekst tekenen?
+ *
+ * Een symbol-laag heeft glyphs (fonts) nodig, en die komen uit de kaartstijl.
+ * De lege stijl heeft er geen, en een stijl **zonder** glyphs bereikt nooit de
+ * toestand "geladen" zodra er toch een tekstlaag in zit. Dat kostte ons alle
+ * markers: de kaart bleef leeg, zonder één foutmelding.
+ *
+ * Daarom: labels alleen bij een echte stijl. Zonder key zie je de clusterbollen
+ * op grootte, en het totaal staat in de balk bovenaan. Bewust géén publieke
+ * fontbron als noodoplossing — de sleutelloze modus moet ook zonder netwerk
+ * werken.
+ */
+export const styleHasLabels = hasMapTiler;
+
 export type MapStyle = string | typeof BLANK_STYLE;
 
 /**

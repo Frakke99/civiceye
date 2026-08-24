@@ -8,6 +8,8 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/.expo/**',
+      // Gekopieerde bestanden van maplibre-gl (scripts/prepare-web-assets.mjs).
+      'apps/mobile/public/**',
       'db/**',
       'tools/**',
       'scripts/points-table.ts',
@@ -41,6 +43,8 @@ export default tseslint.config(
         Buffer: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
+        // Wordt binnen page.evaluate() in de browser uitgevoerd.
+        fetch: 'readonly',
         __dirname: 'readonly',
       },
     },

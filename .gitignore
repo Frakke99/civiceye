@@ -7,3 +7,4 @@ node_modules/
 dist/
 .expo/
 expo-env.d.ts
+apps/mobile/public/maplibre/

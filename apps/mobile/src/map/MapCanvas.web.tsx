@@ -12,17 +12,31 @@ import {
   GeolocateControl,
   Map as MlMap,
   NavigationControl,
+  setWorkerUrl,
   type GeoJSONSource,
   type MapGeoJSONFeature,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Bbox } from '@gc/shared';
-import { mapStyle } from './style';
+import { mapStyle, styleHasLabels } from './style';
 import { toMarkerCollection } from './markers';
 import { MapFallback } from './MapFallback';
 import type { MapCanvasProps } from './types';
 
 const SOURCE = 'meldingen';
+
+/**
+ * maplibre-gl parseert GeoJSON in een web worker en zoekt die naast zijn eigen
+ * bundel. Metro emit dat bestand niet, dus de worker startte nooit: de bron
+ * bleef "niet geladen" en er verscheen geen enkele marker — zonder foutmelding.
+ *
+ * scripts/prepare-web-assets.mjs kopieert de worker naar public/maplibre/;
+ * hier wijzen we maplibre erheen. Via document.baseURI, zodat het ook werkt
+ * wanneer de app niet op de root van een domein staat.
+ */
+if (typeof document !== 'undefined') {
+  setWorkerUrl(new URL('maplibre/maplibre-gl-worker.mjs', document.baseURI).href);
+}
 
 export function MapCanvas({
   markers,
@@ -58,6 +72,11 @@ export function MapCanvas({
       attributionControl: { compact: true },
     });
     map.current = m;
+
+    // Leesbare verwijzing voor de end-to-end test en voor handmatig debuggen in
+    // de console. Bevat geen geheimen: de anon key is publiek en de kaartdata
+    // is dat ook.
+    (globalThis as { __gcMap?: MlMap }).__gcMap = m;
 
     m.addControl(new NavigationControl(), 'top-right');
     m.addControl(
@@ -96,13 +115,17 @@ export function MapCanvas({
           'circle-opacity': 0.92,
         },
       });
-      m.addLayer({
-        id: 'meldingen-label',
-        type: 'symbol',
-        source: SOURCE,
-        layout: { 'text-field': ['get', 'label'], 'text-size': 13, 'text-allow-overlap': true },
-        paint: { 'text-color': '#ffffff' },
-      });
+      // Alleen met een echte stijl: zonder glyphs blijft de stijl "niet geladen"
+      // en tekent de kaart helemaal niets meer. Zie style.ts.
+      if (styleHasLabels) {
+        m.addLayer({
+          id: 'meldingen-label',
+          type: 'symbol',
+          source: SOURCE,
+          layout: { 'text-field': ['get', 'label'], 'text-size': 13, 'text-allow-overlap': true },
+          paint: { 'text-color': '#ffffff' },
+        });
+      }
       meldViewport();
     });
 
@@ -111,6 +134,10 @@ export function MapCanvas({
     // wél state gezet worden. Een ontbrekende tegel legt de app niet stil; een
     // kapotte stijl melden we, want dan zie je helemaal niets.
     m.on('error', (e) => {
+      // Alles loggen: een stille kaartfout kostte ons eerder een lege kaart.
+      // Enkel een kapotte stijl leidt tot de lijstweergave; een ontbrekende
+      // tegel of font mag de app niet stilleggen.
+      console.warn('kaartfout:', e.error?.message);
       if (e.error?.message?.includes('style')) setFout(e.error.message);
     });
 
@@ -145,11 +172,28 @@ export function MapCanvas({
 
   useEffect(() => {
     const m = map.current;
-    if (!m || !m.isStyleLoaded()) return;
-    const source = m.getSource(SOURCE);
-    if (source && 'setData' in source) {
-      (source as GeoJSONSource).setData(toMarkerCollection(markers));
-    }
+    if (!m) return;
+
+    // Bewust NIET achter isStyleLoaded(): die blijft false zolang er nog een
+    // font of sprite onderweg is, ook als de bron er al staat. Daar hing eerder
+    // het hele tekenen van de markers achter, met een lege kaart als gevolg.
+    // De aanwezigheid van de bron is de juiste voorwaarde.
+    const zetData = () => {
+      const source = m.getSource(SOURCE);
+      if (source && 'setData' in source) {
+        (source as GeoJSONSource).setData(toMarkerCollection(markers));
+        return true;
+      }
+      return false;
+    };
+
+    if (zetData()) return;
+
+    // Markers waren er vóór de kaart: opnieuw proberen zodra de bron bestaat.
+    m.once('load', zetData);
+    return () => {
+      m.off('load', zetData);
+    };
   }, [markers]);
 
   if (fout) {
