@@ -1,5 +1,5 @@
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { MapMarker } from '@gc/shared';
+import type { MapMarker } from '@civiceye/shared';
 import { markerLabel, relativeTimeNl, sizeLabelNl, totalReports } from './markers';
 import { theme } from '@/ui/theme';
 

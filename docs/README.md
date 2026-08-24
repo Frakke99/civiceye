@@ -1,6 +1,6 @@
 # Documentatie-index
 
-Architectuur voor **Global Cleanup** — een anonieme meldkaart voor zwerfafval.
+Architectuur voor **CivicEye** — een anonieme meldkaart voor zwerfafval.
 Doel van dit ontwerp: **matuur genoeg voor een eerste publieke roll-out**, niet
 matuur genoeg voor 10 miljoen gebruikers. Waar we bewust een eenvoudigere
 oplossing kiezen, staat de opschaaltrigger erbij ("wanneer wordt dit een

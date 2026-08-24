@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MapMarker } from '@gc/shared';
+import type { MapMarker } from '@civiceye/shared';
 import {
   clusterRadius,
   markerColor,

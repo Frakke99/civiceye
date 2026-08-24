@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "Global Cleanup",
-    "slug": "global-cleanup",
+    "name": "CivicEye",
+    "slug": "civiceye",
     "version": "0.1.0",
     "orientation": "default",
-    "scheme": "globalcleanup",
+    "scheme": "civiceye",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "be.globalcleanup.app"
+      "bundleIdentifier": "be.civiceye.app"
     },
     "android": {
-      "package": "be.globalcleanup.app",
+      "package": "be.civiceye.app",
       "edgeToEdgeEnabled": true
     },
     "web": {

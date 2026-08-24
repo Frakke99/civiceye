@@ -32,7 +32,7 @@ importers:
 
   apps/mobile:
     dependencies:
-      '@gc/shared':
+      '@civiceye/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@maplibre/maplibre-react-native':
@@ -5835,9 +5835,7 @@ snapshots:
       metro-runtime: 0.84.5
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 

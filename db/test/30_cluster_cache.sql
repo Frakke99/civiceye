@@ -2,8 +2,8 @@
 -- dezelfde aantallen geeft als de live query. Draai dit vóór je
 -- use_cluster_cache in productie aanzet.
 --
---   psql -d gc_test -f db/scale/0100_cluster_cache.sql
---   psql -d gc_test -f db/test/30_cluster_cache.sql
+--   psql -d civiceye_test -f db/scale/0100_cluster_cache.sql
+--   psql -d civiceye_test -f db/test/30_cluster_cache.sql
 
 \set ON_ERROR_STOP on
 

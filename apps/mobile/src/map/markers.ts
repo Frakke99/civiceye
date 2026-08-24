@@ -3,7 +3,7 @@
  * kaartbibliotheek: een fout hier betekent onzichtbare of verkeerd getekende
  * meldingen, en dat wil je in een test kunnen aantonen (apps/mobile/test).
  */
-import type { LitterSize, MapMarker, ReportKind } from '@gc/shared';
+import type { LitterSize, MapMarker, ReportKind } from '@civiceye/shared';
 
 /** De drie symbolen uit de meldflow. */
 export const SIZE_ICON: Record<LitterSize, string> = {

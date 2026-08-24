@@ -8,7 +8,7 @@
  */
 import { useCallback, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import type { Bbox } from '@gc/shared';
+import type { Bbox } from '@civiceye/shared';
 import { mapStyle, styleHasLabels } from './style';
 import { toMarkerCollection } from './markers';
 import { MapFallback } from './MapFallback';

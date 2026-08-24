@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { bboxKey, clampZoom, type Bbox, type MapMarker } from '@gc/shared';
+import { bboxKey, clampZoom, type Bbox, type MapMarker } from '@civiceye/shared';
 import { fetchMapReports } from '@/api/reports';
 
 /**

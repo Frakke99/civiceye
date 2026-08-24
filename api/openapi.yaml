@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Global Cleanup API
+  title: CivicEye API
   version: 1.0.0
   license:
     name: MIT

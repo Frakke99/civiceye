@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { errorText, parseApiError, type Bbox } from '@gc/shared';
+import { errorText, parseApiError, type Bbox } from '@civiceye/shared';
 import { MapCanvas } from '@/map/MapCanvas';
 import { MapErrorBoundary } from '@/map/ErrorBoundary';
 import { MapFallback } from '@/map/MapFallback';

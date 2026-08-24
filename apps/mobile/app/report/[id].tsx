@@ -1,7 +1,7 @@
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { errorText, parseApiError } from '@gc/shared';
+import { errorText, parseApiError } from '@civiceye/shared';
 import { fetchReportDetails, photoUrl } from '@/api/reports';
 import { relativeTimeNl, sizeLabelNl } from '@/map/markers';
 import { env } from '@/config/env';

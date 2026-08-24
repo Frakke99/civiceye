@@ -62,16 +62,24 @@ git --version
 ### De code binnenhalen
 
 ```bash
-git clone https://github.com/Frakke99/global-cleanup.git
-cd global-cleanup
+git clone https://github.com/Frakke99/global-cleanup.git civiceye
+cd civiceye
 git checkout claude/afval-meldingsapp-architecture-zuaypg
 ```
 
-Die laatste regel is belangrijk: het werk staat op die branch, niet op `main`.
+Twee dingen om te weten bij deze drie regels:
 
-Vanaf nu geldt: **je staat in de map `global-cleanup`** wanneer je een commando
+- De **repository** op GitHub heet nog `global-cleanup`. Het project heet
+  CivicEye, maar de naam van een GitHub-repo verander je in de
+  instellingen van die repo; dat is een aparte handeling. Door achter de
+  clone-URL `civiceye` te zetten, komt de code toch in een map met de
+  juiste naam. Hernoem je de repo later, dan blijft deze URL werken:
+  GitHub stuurt oude adressen door.
+- De laatste regel is belangrijk: het werk staat op die branch, niet op `main`.
+
+Vanaf nu geldt: **je staat in de map `civiceye`** wanneer je een commando
 uit dit document uitvoert. Controleer dat met `pwd` (macOS/Linux) of `cd`
-(Windows) — er moet `global-cleanup` in staan.
+(Windows) — er moet `civiceye` in staan.
 
 ### De snelste test: de app aanklikken
 
@@ -122,8 +130,8 @@ de tests hebben geen netwerk of Supabase-project nodig.
 Verder nog interessant:
 
 ```bash
-psql -d gc_test -f db/test/20_perf.sql       # 50k meldingen + EXPLAIN ANALYZE
-psql -d gc_test -f db/seed/dev_seed.sql      # 212 meldingen om mee te spelen
+psql -d civiceye_test -f db/test/20_perf.sql       # 50k meldingen + EXPLAIN ANALYZE
+psql -d civiceye_test -f db/seed/dev_seed.sql      # 212 meldingen om mee te spelen
 ```
 
 ---

@@ -4,7 +4,7 @@
 -- wanneer we naar MVT-tiles moeten. Draai dit na een schemawijziging aan
 -- reports of aan map_reports.
 --
---   psql -d gc_test -f db/test/20_perf.sql
+--   psql -d civiceye_test -f db/test/20_perf.sql
 
 \timing off
 \set ON_ERROR_STOP on

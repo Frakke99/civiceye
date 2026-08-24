@@ -7,7 +7,7 @@ import {
   type NearbyReport,
   type ReportDetails,
   type ReportKind,
-} from '@gc/shared';
+} from '@civiceye/shared';
 import { supabase } from '@/api/supabase';
 
 /** Ruwe rijvorm zoals PostgREST hem teruggeeft (snake_case). */

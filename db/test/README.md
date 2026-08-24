@@ -14,7 +14,7 @@ commit opnieuw bewezen worden.
 ## Draaien
 
 ```bash
-./db/test/run_tests.sh              # databank gc_test
+./db/test/run_tests.sh              # databank civiceye_test
 DB=mijn_test ./db/test/run_tests.sh # eigen naam
 ```
 

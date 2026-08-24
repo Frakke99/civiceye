@@ -4,7 +4,7 @@
  * "de app werkt".
  *
  * Draaien:
- *   pnpm --filter @gc/mobile exec expo export --platform web --output-dir dist
+ *   pnpm --filter @civiceye/mobile exec expo export --platform web --output-dir dist
  *   pnpm test:e2e
  *
  * De build moet naar http://127.0.0.1:8811 wijzen, want EXPO_PUBLIC_-variabelen
@@ -88,7 +88,7 @@ const canvas = await page.locator('canvas.maplibregl-canvas').count();
 check('MapLibre tekent een canvas', canvas === 1, `${canvas} canvas-elementen`);
 
 const kaart = await page.evaluate(() => {
-  const m = globalThis.__gcMap;
+  const m = globalThis.__civicEyeMap;
   if (!m) return { fout: 'geen kaartinstantie' };
   return {
     styleLoaded: m.isStyleLoaded(),

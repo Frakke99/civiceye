@@ -5,10 +5,10 @@
 # tónen ("dit levert 5 punten op"). Twee bronnen voor dezelfde regel groeien
 # stil uit elkaar, dus vergelijken we ze bij elke commit.
 #
-#   DB=gc_test ./scripts/check-points-parity.sh
+#   DB=civiceye_test ./scripts/check-points-parity.sh
 set -euo pipefail
 
-DB="${DB:-gc_test}"
+DB="${DB:-civiceye_test}"
 
 # Type-stripping van .ts-bestanden vraagt Node 22.6+.
 node_major="$(node -p 'process.versions.node.split(".")[0]')"

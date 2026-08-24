@@ -32,7 +32,7 @@ const adressen = Object.values(os.networkInterfaces())
   .filter((n) => n && n.family === 'IPv4' && !n.internal)
   .map((n) => n.address);
 
-console.log('\n  Global Cleanup — demo met nagemaakt backend\n');
+console.log('\n  CivicEye — demo met nagemaakt backend\n');
 console.log(`  op deze machine   http://127.0.0.1:${WEB_POORT}`);
 for (const a of adressen) {
   console.log(`  op je telefoon    http://${a}:${WEB_POORT}   (zelfde wifi)`);

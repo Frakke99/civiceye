@@ -2,13 +2,13 @@
 # Voert alle migraties + smoketests uit tegen een wegwerpdatabank.
 # Vereist: een lopende Postgres met PostGIS en een superuser-verbinding.
 #
-#   ./db/test/run_tests.sh                 # gebruikt PGDATABASE=gc_test
+#   ./db/test/run_tests.sh                 # gebruikt PGDATABASE=civiceye_test
 #   DB=mijntest ./db/test/run_tests.sh
 #
 # In CI: zie .github/workflows/ci.yml (postgis/postgis service container).
 set -euo pipefail
 
-DB="${DB:-gc_test}"
+DB="${DB:-civiceye_test}"
 PSQL=(psql -v ON_ERROR_STOP=1 --no-psqlrc -q)
 
 echo "→ databank $DB opnieuw aanmaken"

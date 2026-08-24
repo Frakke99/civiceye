@@ -1,5 +1,5 @@
 {
-  "name": "@gc/shared",
+  "name": "@civiceye/shared",
   "version": "0.1.0",
   "private": true,
   "description": "Types, foutcodes en berekeningen die client en beheerdersconsole delen",

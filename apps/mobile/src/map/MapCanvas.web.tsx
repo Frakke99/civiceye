@@ -17,7 +17,7 @@ import {
   type MapGeoJSONFeature,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { Bbox } from '@gc/shared';
+import type { Bbox } from '@civiceye/shared';
 import { mapStyle, styleHasLabels } from './style';
 import { toMarkerCollection } from './markers';
 import { MapFallback } from './MapFallback';
@@ -76,7 +76,7 @@ export function MapCanvas({
     // Leesbare verwijzing voor de end-to-end test en voor handmatig debuggen in
     // de console. Bevat geen geheimen: de anon key is publiek en de kaartdata
     // is dat ook.
-    (globalThis as { __gcMap?: MlMap }).__gcMap = m;
+    (globalThis as { __civicEyeMap?: MlMap }).__civicEyeMap = m;
 
     m.addControl(new NavigationControl(), 'top-right');
     m.addControl(

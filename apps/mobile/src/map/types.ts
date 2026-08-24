@@ -1,4 +1,4 @@
-import type { Bbox, MapMarker } from '@gc/shared';
+import type { Bbox, MapMarker } from '@civiceye/shared';
 
 export interface Viewport {
   bbox: Bbox;

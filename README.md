@@ -1,4 +1,4 @@
-# Global Cleanup
+# CivicEye
 
 Wandelaars melden zwerfafval (en andere problemen) op de kaart, zodat gemeenten,
 afvalrapers en vrijwilligers snel zien waar er werk ligt.
