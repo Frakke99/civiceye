@@ -1,9 +1,12 @@
 name: CI
 
+# Alleen push-runs: een pull_request-trigger ernaast zou elke commit met een
+# open PR dubbel bouwen, en de checks op de head-commit verschijnen sowieso in
+# de PR. (Krijgt dit project ooit externe forks, voeg pull_request dan terug
+# toe — push-runs draaien niet voor forks.)
 on:
   push:
-    branches: [main]
-  pull_request:
+    branches: ['**']
 
 concurrency:
   group: ci-${{ github.ref }}
