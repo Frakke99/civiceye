@@ -106,6 +106,8 @@ pariteitstest van de opschaalstap.
 
 ### Met Docker (aanbevolen — zelfde image als CI)
 
+macOS/Linux:
+
 ```bash
 docker run --rm -d --name civiceye-db \
   -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgis/postgis:16-3.4
@@ -114,6 +116,19 @@ docker run --rm -d --name civiceye-db \
 until docker exec civiceye-db pg_isready -q; do sleep 1; done
 
 PGHOST=localhost PGUSER=postgres PGPASSWORD=postgres ./db/test/run_tests.sh
+```
+
+Windows (PowerShell — vereist Docker Desktop): het testscript is bash, dus we
+draaien alles ín de container; daar zitten bash en de Postgres-tools al in.
+
+```powershell
+docker run --rm -d --name civiceye-db -e POSTGRES_PASSWORD=postgres `
+  -v "${PWD}:/repo" -w /repo postgis/postgis:16-3.4
+
+docker exec civiceye-db pg_isready   # herhaal tot "accepting connections"
+
+docker exec -e PGUSER=postgres civiceye-db bash db/test/run_tests.sh
+docker stop civiceye-db
 ```
 
 ### Of met een lokale Postgres

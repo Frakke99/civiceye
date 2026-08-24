@@ -15,9 +15,12 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const HIER = path.dirname(new URL(import.meta.url).pathname);
+// fileURLToPath, niet url.pathname: dat laatste geeft op Windows "/C:/..."
+// en dan zoekt Node in het onbestaande "C:\C:\...".
+const HIER = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HIER, '..');
 const DOEL = path.join(ROOT, 'apps', 'mobile', 'public', 'maplibre');
 
