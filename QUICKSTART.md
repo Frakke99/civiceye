@@ -40,8 +40,16 @@ Windows (PowerShell):
 ```powershell
 winget install OpenJS.NodeJS.LTS
 winget install Git.Git
+
+# PowerShell blokkeert standaard alle scripts, en npm/pnpm zíjn scripts.
+# Dit versoepelt dat alleen voor jouw account (geen admin nodig):
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
 npm install -g pnpm@10
 ```
+
+Krijg je toch "running scripts is disabled on this system", dan is die
+`Set-ExecutionPolicy`-regel nog niet gedraaid — draai hem en probeer opnieuw.
 
 macOS (met Homebrew):
 
