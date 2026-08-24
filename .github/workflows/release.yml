@@ -1,0 +1,120 @@
+name: Release
+
+# Draait op een versietag. De volgorde is opzettelijk: migraties naar staging
+# gaan vóór de builds, zodat een migratieprobleem opvalt vóórdat er een build
+# in TestFlight staat. Productie volgt pas na een handmatige go/no-go.
+# Zie docs/08-infra-omgevingen-cicd.md en docs/10-rollout-en-testplan.md
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Doelomgeving
+        type: choice
+        options: [staging, production]
+        default: staging
+
+jobs:
+  staging:
+    name: Migraties + builds naar staging
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Migraties naar staging
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref "${{ vars.STAGING_PROJECT_REF }}"
+          supabase db push
+
+      - name: Edge Functions naar staging
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy --project-ref "${{ vars.STAGING_PROJECT_REF }}"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: iOS + Android bouwen en naar de testkanalen sturen
+        run: eas build --profile staging --platform all --non-interactive --auto-submit
+
+      - name: Web-build
+        run: pnpm --filter mobile exec expo export --platform web
+
+  production:
+    name: Naar productie (na go/no-go)
+    needs: staging
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # De environment 'production' heeft een verplichte reviewer in GitHub:
+    # dat ís de go/no-go-poort uit docs/10-rollout-en-testplan.md
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Databankdump als extra vangnet
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref "${{ vars.PROD_PROJECT_REF }}"
+          supabase db dump -f pre-release-dump.sql
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pre-release-dump
+          path: pre-release-dump.sql
+          retention-days: 30
+
+      - name: Migraties naar productie
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+        run: supabase db push
+
+      - name: Edge Functions naar productie
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy --project-ref "${{ vars.PROD_PROJECT_REF }}"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      # Gefaseerde uitrol: Android start op 5 %, iOS met een phased release.
+      - name: Store-builds inzenden
+        run: eas build --profile production --platform all --non-interactive --auto-submit

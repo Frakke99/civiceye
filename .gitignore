@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+dist/
+.expo/
+expo-env.d.ts
+apps/mobile/public/maplibre/

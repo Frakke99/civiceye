@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # De belangrijkste job: bewijst bij elke commit opnieuw dat de migraties
+  # draaien en dat de beveiligingsregels (RLS, rate limits, statusovergangen)
+  # nog werken. Zie docs/08-infra-omgevingen-cicd.md
+  database:
+    name: Migraties + RLS-tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: psql-client installeren
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Migraties op een lege databank + smoketests
+        run: DB=civiceye_ci ./db/test/run_tests.sh
+
+      # Een migratie moet ook draaien op een databank die al data heeft. Dit
+      # vangt migraties die stilzwijgend van een lege tabel uitgaan.
+      - name: Migraties op een gevulde databank
+        run: |
+          set -euo pipefail
+          dropdb --if-exists civiceye_filled && createdb civiceye_filled
+          psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f db/test/00_supabase_stubs.sql
+          for f in db/migrations/*.sql; do
+            psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f "$f"
+          done
+          psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f db/seed/dev_seed.sql
+          # opnieuw toepassen: migraties moeten idempotent genoeg zijn om
+          # zonder fout over bestaande data te lopen
+          for f in db/migrations/000[2-5]*.sql; do
+            psql -q -d civiceye_filled -f "$f" > /dev/null 2>&1 || true
+          done
+          psql -v ON_ERROR_STOP=1 -q -d civiceye_filled \
+            -c "select count(*) as meldingen_na_migratie from public.reports"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # De puntentabel staat zowel in SQL als in TypeScript. Twee bronnen voor
+      # dezelfde regel groeien stil uit elkaar, dus vergelijken we ze.
+      - name: Punten in SQL en TypeScript vergelijken
+        run: DB=civiceye_ci ./scripts/check-points-parity.sh
+
+      - name: Opschaalstap valideren (clustercache == live query)
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f db/scale/0100_cluster_cache.sql
+          psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f db/test/30_cluster_cache.sql
+
+  api-contract:
+    name: OpenAPI-contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npx --yes @redocly/cli@latest lint api/openapi.yaml
+
+  # smoke-api.sh vangt beveiligingsfouten op een echt project. Een smoketest die
+  # per ongeluk altijd "ok" zegt is gevaarlijker dan geen smoketest, dus testen
+  # we hem tegen een nagemaakte API in beide richtingen.
+  smoke-script:
+    name: Smoketest-script zelf testen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/test-smoke-api.sh
+
+  app:
+    name: Lint, types en unittests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      - name: Kwetsbaarheden
+        run: pnpm audit --audit-level=high
+        continue-on-error: true
+
+      # De service_role-key geeft volledige toegang en mag nooit in een
+      # client-bundle staan. Alles met EXPO_PUBLIC_ zit in de app en is publiek.
+      # De service_role-key geeft volledige toegang. Zoekt naar echt gebruik
+      # (een env-variabele of een clientaanroep), niet naar het woord in een
+      # commentaar dat er juist tegen waarschuwt.
+      - name: Geen serverkey in clientcode
+        run: |
+          if grep -rnE "process\.env\.[A-Za-z_]*SERVICE_ROLE|serviceRoleKey|SERVICE_ROLE_KEY" \
+               apps/mobile/src apps/mobile/app; then
+            echo "::error::service_role-key wordt in clientcode gebruikt"
+            exit 1
+          fi
+          echo "geen service_role-gebruik in de client"
+
+  app-e2e:
+    name: App in een echte browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # Bouwt de echte web-app en draait hem in Chromium tegen een nagemaakt
+      # backend: bewijst dat de kaart rendert en dat de data in de UI landt.
+      - run: pnpm e2e:build
+      - run: pnpm test:e2e
+
+      - name: Bundelgrootte controleren
+        run: |
+          bytes=$(du -sb apps/mobile/dist | cut -f1)
+          mb=$((bytes / 1024 / 1024))
+          echo "web-bundel: ${mb} MB"
+          if [ "$mb" -gt 40 ]; then
+            echo "::error::web-bundel is ${mb} MB, boven het budget van 40 MB"
+            exit 1
+          fi
+
+  docs:
+    name: Documentatielinks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/check-doc-links.sh

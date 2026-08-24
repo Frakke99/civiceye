@@ -1,0 +1,34 @@
+{
+  "name": "civiceye",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Anonieme meldkaart voor zwerfafval",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "pnpm prepare:web && pnpm --filter @civiceye/mobile start",
+    "web": "pnpm prepare:web && pnpm --filter @civiceye/mobile exec expo start --web",
+    "web:build": "pnpm prepare:web && pnpm --filter @civiceye/mobile exec expo export --platform web --output-dir dist",
+    "db:test": "./db/test/run_tests.sh",
+    "db:parity": "./scripts/check-points-parity.sh",
+    "e2e:build": "pnpm prepare:web && cd apps/mobile && EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:8811 EXPO_PUBLIC_SUPABASE_ANON_KEY=e2e-anon-key EXPO_PUBLIC_ENV=dev EXPO_PUBLIC_MAPTILER_KEY= pnpm exec expo export --platform web --output-dir dist --clear",
+    "test:e2e": "node apps/mobile/e2e/run.mjs",
+    "demo": "node apps/mobile/e2e/serve-demo.mjs",
+    "prepare:web": "node scripts/prepare-web-assets.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.0",
+    "eslint-config-expo": "^57.0.1",
+    "playwright": "^1.50.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.11"
+  }
+}

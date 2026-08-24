@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "CivicEye",
+    "slug": "civiceye",
+    "version": "0.1.0",
+    "orientation": "default",
+    "scheme": "civiceye",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "be.civiceye.app"
+    },
+    "android": {
+      "package": "be.civiceye.app",
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
