@@ -13,6 +13,81 @@ Sprint 1 is gebouwd: er is een echte Expo-app met een MapLibre-kaart die de
 meldingen uit je databank clustert. Melden zelf (locatie, type, foto, offline
 wachtrij) is sprint 2.
 
+**Nog nooit een terminal gebruikt voor dit project?** Begin bij
+[Voor je begint](#voor-je-begint--de-code-op-je-eigen-machine): daar staat hoe
+je Node, pnpm en de code op je machine krijgt, en welk programma je opent.
+
+---
+
+## Voor je begint — de code op je eigen machine
+
+Alle commando's in dit document draai je in een **terminal op je eigen
+computer**, in de map van dit project. Niet in een browser, en niet in een
+chatvenster.
+
+| Besturingssysteem | Welk programma |
+| ----------------- | -------------- |
+| Windows | **Windows Terminal** of **PowerShell** (Start → "terminal") |
+| macOS | **Terminal** (Cmd+Space → "terminal") |
+| Linux | je gewone terminal |
+
+### Eenmalig: Node, pnpm en git installeren
+
+Je hebt **Node.js 22 of hoger** nodig, plus **pnpm** en **git**.
+
+Windows (PowerShell):
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+winget install Git.Git
+npm install -g pnpm@10
+```
+
+macOS (met Homebrew):
+
+```bash
+brew install node git
+npm install -g pnpm@10
+```
+
+Sluit daarna je terminal en open een nieuwe, anders kent hij de nieuwe
+commando's nog niet. Controleren:
+
+```bash
+node --version    # moet v22 of hoger zijn
+pnpm --version    # moet 10.x zijn
+git --version
+```
+
+### De code binnenhalen
+
+```bash
+git clone https://github.com/Frakke99/global-cleanup.git
+cd global-cleanup
+git checkout claude/afval-meldingsapp-architecture-zuaypg
+```
+
+Die laatste regel is belangrijk: het werk staat op die branch, niet op `main`.
+
+Vanaf nu geldt: **je staat in de map `global-cleanup`** wanneer je een commando
+uit dit document uitvoert. Controleer dat met `pwd` (macOS/Linux) of `cd`
+(Windows) — er moet `global-cleanup` in staan.
+
+### De snelste test: de app aanklikken
+
+```bash
+pnpm install     # eenmalig, haalt de afhankelijkheden op (~2 min)
+pnpm e2e:build   # bouwt de web-app (~1 min)
+pnpm demo        # start de app met verzonnen meldingen
+```
+
+Het laatste commando print twee adressen: één voor deze computer en één voor je
+telefoon op hetzelfde wifi-netwerk. Open dat adres in je browser. Stoppen doe je
+met Ctrl-C.
+
+Je hebt hier **geen Supabase-project voor nodig** — de demo praat met een
+nagemaakt backend. Wil je je eigen data zien, ga dan naar laag 2 en 3.
+
 ---
 
 ## Laag 1 — backend lokaal (5 minuten)
