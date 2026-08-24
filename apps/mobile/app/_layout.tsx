@@ -35,6 +35,10 @@ export default function RootLayout() {
             name="report/[id]"
             options={{ presentation: 'modal', headerShown: true, title: 'Melding' }}
           />
+          <Stack.Screen
+            name="report/nieuw"
+            options={{ presentation: 'modal', headerShown: true, title: 'Afval melden' }}
+          />
         </Stack>
       </SafeAreaProvider>
       {/* De sessiefout wordt in Instellingen getoond; hier alleen bewaren. */}

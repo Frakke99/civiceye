@@ -29,17 +29,28 @@ testen.
 Dit was bewust de eerste sprint: de kaart met echte data is het risicovolste
 onderdeel van de UI, en je wil dat vroeg weten.
 
-## Sprint 2 — Melden
+## Sprint 2 — Melden ✅
 
-- [ ] Anonieme auth bij de eerste start, sessie in secure store
-- [ ] Meldflow: locatie (GPS + versleepbare pin) → drie typekeuzes → posten
-- [ ] `create_report` aansluiten, met de volledige foutcodemapping
-- [ ] Optimistische pin op de kaart
-- [ ] `nearby_reports` vóór het posten → "bevestigen of toch melden"
-- [ ] Detailscherm van een melding
+- [x] Anonieme auth bij de eerste start, sessie in secure store
+- [x] Meldflow: locatie (GPS + versleepbare pin) → drie typekeuzes → posten
+- [x] `create_report` aansluiten, met de volledige foutcodemapping
+- [x] Optimistische pin op de kaart
+- [x] `nearby_reports` vóór het posten → "bevestigen of toch melden"
+- [x] Detailscherm van een melding
 
 **Klaar wanneer:** je buiten kan wandelen, drie meldingen kan maken, en ze op
 een tweede toestel ziet verschijnen.
+
+**Hoe het gebouwd is:** de "versleepbare pin" is een vaste pin in het midden
+van een kaartje dat je onder de pin door sleept — één aanrakingsmodel, werkt
+identiek op web en native. GPS wordt pas gevraagd in de flow zelf, met de
+uitleg uit `app.json` (expo-location); geweigerd betekent gewoon zelf slepen.
+De duplicaatvraag verschijnt alleen bij hetzelfde type binnen 20 m, en
+"bevestigen" gaat via `confirm_report`. Elke post krijgt bij de start van de
+flow een `client_ref` (uuid v4), dus "opnieuw proberen" na een fout kan nooit
+een dubbele melding worden. "Mijn meldingen" is meegenomen: eigen meldingen
+via RLS, inclusief quarantaine. De offline outbox is bewust sprint 3 gebleven;
+een netwerkfout toont nu een expliciete retry-knop.
 
 ## Sprint 3 — Foto's en offline
 

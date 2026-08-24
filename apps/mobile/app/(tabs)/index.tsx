@@ -72,13 +72,11 @@ export default function KaartScherm() {
         </View>
       ) : null}
 
-      {/* Sprint 2 vult deze knop met de meldflow. Hij staat er nu al zodat de
-          plaatsing op elk toestel getest kan worden (rechtsonder, één hand). */}
       <Pressable
         style={[styles.meldKnop, { bottom: insets.bottom + theme.space(6) }]}
         accessibilityRole="button"
         accessibilityLabel="Afval melden"
-        accessibilityHint="Komt in de volgende versie"
+        accessibilityHint="Opent de meldflow: locatie kiezen en grootte aantikken"
         onPress={() => router.push('/report/nieuw')}
       >
         <Text style={styles.meldKnopTekst}>Afval melden</Text>

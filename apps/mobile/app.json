@@ -21,7 +21,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "CivicEye gebruikt je locatie alleen om de pin van je melding op de juiste plek te zetten. Er is geen achtergrondtracking.",
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

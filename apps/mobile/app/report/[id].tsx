@@ -10,23 +10,9 @@ import { theme } from '@/ui/theme';
 export default function MeldingDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  // 'nieuw' is de route van de meldflow (sprint 2). Bewust een aparte component
-  // en geen early return: hooks moeten in elke render in dezelfde volgorde
-  // aangeroepen worden, ook wanneer je van /report/nieuw naar /report/<uuid> gaat.
-  if (id === 'nieuw') return <MeldflowNogNiet />;
+  // De meldflow leeft op zijn eigen statische route (app/report/nieuw.tsx);
+  // expo-router kiest die vóór deze dynamische, dus hier komen enkel uuid's.
   return <MeldingInhoud id={id} />;
-}
-
-function MeldflowNogNiet() {
-  return (
-    <View style={styles.midden}>
-      <Text style={styles.titel}>Melden komt in de volgende versie</Text>
-      <Text style={styles.tekst}>
-        Deze versie toont de kaart met bestaande meldingen. De meldflow — locatie, type,
-        foto, offline wachtrij — is sprint 2.
-      </Text>
-    </View>
-  );
 }
 
 function MeldingInhoud({ id }: { id: string }) {
@@ -90,7 +76,7 @@ function MeldingInhoud({ id }: { id: string }) {
         {data.isMine ? <Rij label="Van jou" waarde="ja" /> : null}
       </View>
 
-      {/* Opruimen en rapporteren komen in sprint 2 en 4. */}
+      {/* Rapporteren komt in sprint 4; opruimen is fase 2 (feature_disabled). */}
       <Text style={styles.klein}>
         Opruimen markeren en rapporteren komen in een volgende versie.
       </Text>

@@ -5,21 +5,23 @@ Zie [ADR 0001](adr/0001-client-platform-expo.md) voor de afweging.
 
 ## Repostructuur
 
-Wat er nu staat (sprint 1), met een ✅ voor wat gebouwd is:
+Wat er nu staat (sprint 1 + 2), met een ✅ voor wat gebouwd is:
 
 ```
 apps/mobile/            Expo app (iOS, Android, web)          ✅
   app/                  expo-router: bestandsgebaseerde routes
     (tabs)/
       index.tsx           kaart (startscherm)                 ✅
-      mine.tsx            mijn meldingen                      (sprint 2)
+      mine.tsx            mijn meldingen                      ✅
       settings.tsx        instellingen + diagnose             ✅
     report/
       [id].tsx            detail van een melding              ✅
+      nieuw.tsx           meldflow: locatie → type → posten   ✅
   src/
     api/                supabase-client, RPC's, query-hooks   ✅
     auth/               anonieme sessie                       ✅
     map/                MapLibre-wrapper, markers, fallback   ✅
+    report/             meldflow-logica, GPS, optimistische pin ✅
     config/             omgevingsvariabelen                   ✅
     ui/                 thema (kleuren, maten, raakvlakken)   ✅
     outbox/             offline wachtrij                      (sprint 3)
