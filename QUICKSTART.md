@@ -62,20 +62,12 @@ git --version
 ### De code binnenhalen
 
 ```bash
-git clone https://github.com/Frakke99/global-cleanup.git civiceye
+git clone https://github.com/Frakke99/civiceye.git
 cd civiceye
 git checkout claude/afval-meldingsapp-architecture-zuaypg
 ```
 
-Twee dingen om te weten bij deze drie regels:
-
-- De **repository** op GitHub heet nog `global-cleanup`. Het project heet
-  CivicEye, maar de naam van een GitHub-repo verander je in de
-  instellingen van die repo; dat is een aparte handeling. Door achter de
-  clone-URL `civiceye` te zetten, komt de code toch in een map met de
-  juiste naam. Hernoem je de repo later, dan blijft deze URL werken:
-  GitHub stuurt oude adressen door.
-- De laatste regel is belangrijk: het werk staat op die branch, niet op `main`.
+De laatste regel is belangrijk: het werk staat op die branch, niet op `main`.
 
 Vanaf nu geldt: **je staat in de map `civiceye`** wanneer je een commando
 uit dit document uitvoert. Controleer dat met `pwd` (macOS/Linux) of `cd`

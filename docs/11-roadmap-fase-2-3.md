@@ -85,13 +85,14 @@ is, kost iemand een verplaatsing. `confirm_report` wordt dan belangrijker.
 
 ## Fase 3 — Gemeenteportaal
 
-*Al aanwezig: `municipality_code` op elke melding, `municipalities`-tabel,
-`export-area`-endpoint.*
+*Al aanwezig: `municipality_code` op elke melding, `municipalities`-tabel, en
+het `export-area`-endpoint in het [API-contract](04-api-contract.md) — de Edge
+Function zelf is nog niet gebouwd.*
 
 De volgorde die het minste werk kost en het meeste oplevert:
 
-1. **Export** (bestaat): GeoJSON/CSV per gemeente, met een API-key. Elke
-   GIS-medewerker kan daarmee verder.
+1. **Export**: GeoJSON/CSV per gemeente, met een API-key. Eén Edge Function
+   volgens het bestaande contract; elke GIS-medewerker kan daarmee verder.
 2. **Read-only webkaart per gemeente** met filters en een "opgeruimd"-knop voor
    de eigen dienst.
 3. **Koppeling met hun meldingssysteem** (bv. een webhook per nieuwe melding in
