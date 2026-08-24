@@ -96,6 +96,25 @@ met Ctrl-C.
 Je hebt hier **geen Supabase-project voor nodig** — de demo praat met een
 nagemaakt backend. Wil je je eigen data zien, ga dan naar laag 2 en 3.
 
+> **Telefoon krijgt "site niet bereikbaar"?** Dan blokkeert de Windows
+> Firewall inkomende verbindingen naar Node. Twee dingen controleren:
+>
+> 1. Bij de eerste start toont Windows een venster "Windows Defender Firewall
+>    heeft enkele functies van Node.js geblokkeerd" — vink daar
+>    **Privénetwerken** aan en klik *Toegang toestaan*. Weggeklikt? Herstel het
+>    met één regel in een **PowerShell als administrator**:
+>
+>    ```powershell
+>    New-NetFirewallRule -DisplayName "CivicEye demo" -Direction Inbound -Protocol TCP -LocalPort 8810,8811 -Action Allow
+>    ```
+>
+> 2. Je wifi moet op je pc als **Privénetwerk** staan: Instellingen → Netwerk
+>    en internet → Wi-Fi → jouw netwerk → Netwerkprofieltype → Privé. Op
+>    "Openbaar" blokkeert Windows dit soort verkeer sowieso.
+>
+> Helpt dat niet: zet een eventuele VPN op je telefoon uit, en weet dat
+> gasten-wifi vaak "isolatie" heeft waardoor toestellen elkaar nooit zien.
+
 ---
 
 ## Laag 1 — backend lokaal (5 minuten)
