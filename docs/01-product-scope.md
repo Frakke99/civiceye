@@ -67,6 +67,6 @@ laagdrempelige manier om te melden, en de opruimer rijdt/wandelt op gevoel.
 
 ## Definitie van "klaar voor publieke roll-out"
 
-Alle punten van de [go/no-go-checklist](10-rollout-en-testplan.md#go-no-go) staan
+Alle punten van de [go/no-go-checklist](10-rollout-en-testplan.md#gono-go) staan
 op groen: device-matrix getest, privacyverklaring live, moderatiepad werkend,
 rate limits actief, rollback-procedure één keer echt uitgevoerd.

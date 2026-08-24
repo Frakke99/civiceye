@@ -27,7 +27,7 @@
 create materialized view if not exists public.report_clusters as
 select
   z.zoom,
-  st_snaptogrid(r.geom::geometry, 360.0 / (2 ^ (z.zoom + 2)))        as cell,
+  st_snaptogrid(r.geom::geometry, public.cluster_cell_size(z.zoom))    as cell,
   r.kind,
   r.size,
   (r.status = 'cleaned')                                            as is_cleaned,
@@ -127,7 +127,7 @@ begin
     -- Cellen worden gesnapt op hun linkeronderhoek: een cel die het venster
     -- overlapt kan een hoek buiten het venster hebben. We zoeken daarom één
     -- celbreedte ruimer, anders vallen clusters aan de rand weg bij het pannen.
-    v_cell := 360.0 / (2 ^ (v_zoom + 2));
+    v_cell := public.cluster_cell_size(v_zoom);
 
     return query
       select
@@ -152,7 +152,7 @@ begin
   end if;
 
   -- c) uitgezoomd zonder cache (v1-gedrag)
-  v_cell := 360.0 / (2 ^ (v_zoom + 2));
+  v_cell := public.cluster_cell_size(v_zoom);
 
   return query
     select
@@ -192,6 +192,10 @@ begin
   refresh materialized view concurrently public.report_clusters;
 end;
 $$;
+
+-- Sinds 0003 krijgen nieuwe functies geen PUBLIC-execute meer; de refresh is
+-- er enkel voor pg_cron (draait als eigenaar) en de service-key.
+grant execute on function public.refresh_report_clusters() to service_role;
 
 do $$
 begin

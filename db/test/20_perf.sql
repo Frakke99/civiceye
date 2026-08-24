@@ -9,6 +9,10 @@
 \timing off
 \set ON_ERROR_STOP on
 
+-- Aantal meldingen; overschrijven met `psql -v n=500000 -f db/test/20_perf.sql`.
+-- De 500k-meting in docs/06 en db/scale/0100 is hiermee reproduceerbaar.
+\if :{?n} \else \set n 50000 \endif
+
 -- Eén technische gebruiker voor alle testmeldingen.
 insert into auth.users (id) values ('99999999-9999-9999-9999-999999999999')
 on conflict do nothing;
@@ -27,7 +31,7 @@ select
   '99999999-9999-9999-9999-999999999999',
   now() - (random() * interval '180 days'),
   'published'
-from generate_series(1, 50000) i
+from generate_series(1, :n) i
 cross join lateral (
   select lng, lat from (values
     (4.4025, 51.2194),  -- Antwerpen

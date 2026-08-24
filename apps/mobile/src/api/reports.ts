@@ -4,7 +4,6 @@ import {
   clampZoom,
   type Bbox,
   type MapMarker,
-  type NearbyReport,
   type ReportDetails,
   type ReportKind,
 } from '@civiceye/shared';
@@ -104,28 +103,6 @@ export async function fetchReportDetails(reportId: string): Promise<ReportDetail
       status: p.status as ReportDetails['photos'][number]['status'],
     })),
   };
-}
-
-export async function fetchNearbyReports(
-  lat: number,
-  lng: number,
-  radiusM = 50,
-): Promise<NearbyReport[]> {
-  const { data, error } = await supabase.rpc('nearby_reports', {
-    p_lat: lat,
-    p_lng: lng,
-    p_radius_m: radiusM,
-  });
-  if (error) throw new ApiError(error);
-
-  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
-    reportId: String(r.report_id),
-    kind: r.kind as ReportKind,
-    size: r.size as NearbyReport['size'],
-    distanceM: Number(r.distance_m),
-    createdAt: String(r.created_at),
-    hasPhoto: Boolean(r.has_photo),
-  }));
 }
 
 /** Publieke CDN-URL van een gescande foto. */

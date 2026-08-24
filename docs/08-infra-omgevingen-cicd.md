@@ -26,10 +26,11 @@ dat voorvoegsel zit in de app-bundle en is dus publiek.
 
 ## Databasemigraties
 
-```bash
-supabase link --project-ref <ref>
-supabase db push              # past db/migrations/* toe
-```
+De Supabase CLI verwacht migraties in `supabase/migrations/` met een
+tijdstempel in de naam; onze bestanden heten `0001_…`. De release-workflow
+zet ze daarom eerst deterministisch om (zie `.github/workflows/release.yml`),
+en voor een eenmalige setup is de psql-loop uit de
+[QUICKSTART](../QUICKSTART.md#2-migraties-toepassen) even correct en sneller.
 
 Regels:
 
@@ -37,8 +38,9 @@ Regels:
    toegepaste migratie herstel je met een **nieuwe** migratie.
 2. Elke migratie gaat eerst naar staging, daarna naar prod. Nooit
    omgekeerd, nooit rechtstreeks.
-3. CI test elke migratie tegen een lege **en** een gevulde databank.
-4. `db/scale/` valt buiten `supabase db push`: die pas je bewust en handmatig
+3. CI draait bij elke commit alle migraties, de volledige assertionsuite én
+   de opschaalstap met pariteitstest (`db/test/run_tests.sh`).
+4. `db/scale/` valt buiten de migratiereeks: die pas je bewust en handmatig
    toe wanneer een opschaaltrigger afgaat.
 5. Vóór een migratie op prod: `supabase db dump` als extra vangnet, ook al
    staat PITR aan.
@@ -51,7 +53,7 @@ Regels:
 | ---- | ------------------ |
 | `pnpm lint` + `tsc --noEmit` | typefouten en dode code |
 | `pnpm test` (unit: outbox-retries, puntenberekening, foutmapping) | logicafouten in de client |
-| **DB-job**: migraties + de 48 assertions van `db/test/10_tests.sql` op postgis/postgis | een migratie die niet draait, een RLS-lek, een kapotte RPC |
+| **DB-job**: migraties + de 69 assertions van `db/test/10_tests.sql` op postgis/postgis, plus de cluster-cache-pariteit | een migratie die niet draait, een RLS-lek, een kapotte RPC |
 | Migratie op een gevulde databank (seed → migraties) | migraties die enkel op een lege databank werken |
 | `redocly lint api/openapi.yaml` | een API-contract dat niet meer geldig is |
 | `pnpm audit --audit-level=high` | bekende kwetsbaarheden |

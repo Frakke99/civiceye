@@ -161,8 +161,8 @@ create table public.reports (
 create index reports_geom_gix on public.reports using gist (geom)
   where status in ('published', 'cleaned');
 
--- Lijst-/exportquery's en de retentiejob.
-create index reports_created_at_idx on public.reports (created_at desc);
+-- Lijst-/exportquery's en de retentiejob filteren altijd op status of melder;
+-- een losse index op created_at zou niets extra's dienen.
 create index reports_status_created_idx on public.reports (status, created_at desc);
 create index reports_created_by_idx on public.reports (created_by, created_at desc);
 create index reports_municipality_idx on public.reports (municipality_code, created_at desc)
@@ -253,12 +253,14 @@ create index report_audit_created_idx on public.report_audit (created_at);
 
 -- Moderatiehandelingen: wie deed wat wanneer.
 create table public.moderation_events (
-  id         bigint generated always as identity primary key,
-  report_id  uuid references public.reports (id) on delete set null,
-  actor_id   uuid references public.profiles (id) on delete set null,
-  action     text not null,   -- 'quarantine' | 'restore' | 'remove' | 'block_user' | 'auto_quarantine'
-  reason     text,
-  created_at timestamptz not null default now()
+  id             bigint generated always as identity primary key,
+  report_id      uuid references public.reports (id) on delete set null,
+  target_user_id uuid references public.profiles (id) on delete set null,
+  actor_id       uuid references public.profiles (id) on delete set null,
+  action         text not null check (action in
+                   ('quarantine', 'restore', 'remove', 'block_user', 'auto_quarantine')),
+  reason         text,
+  created_at     timestamptz not null default now()
 );
 
 create index moderation_events_report_idx on public.moderation_events (report_id, created_at desc);
@@ -285,6 +287,16 @@ insert into public.app_config (key, value) values
   ('cleanups_enabled',         'false'::jsonb),
   ('enabled_kinds',            '["litter"]'::jsonb),
   ('min_supported_app_version', '"1.0.0"'::jsonb);
+
+-- Geheimen die de databank zelf beheert (nu enkel de IP-hash-salt).
+-- Bewust een aparte tabel: app_config is leesbaar voor clients, deze tabel
+-- voor niemand — RLS aan (0002), geen policies, geen grants. Met de salt in
+-- handen zou een SHA-256 over de IPv4-ruimte triviaal te bruteforcen zijn.
+create table public.app_secrets (
+  key        text primary key,
+  value      text not null,
+  updated_at timestamptz not null default now()
+);
 
 -- ---------------------------------------------------------------------------
 -- updated_at bijhouden

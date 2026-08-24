@@ -131,7 +131,7 @@ Drie volledig gescheiden Supabase-projecten en drie app-varianten:
 
 | Omgeving | Supabase | App | Doel |
 | -------- | -------- | --- | ---- |
-| `dev` | eigen project (of lokaal via `supabase start`) | Expo Go | dagelijkse ontwikkeling, seed-data |
+| `dev` | eigen project (of lokaal via `supabase start`) | dev build / web | dagelijkse ontwikkeling, seed-data (Expo Go kan de kaart niet tonen — [ADR 0001](adr/0001-client-platform-expo.md)) |
 | `staging` | eigen project, productie-achtige config | interne TestFlight/Internal testing build | device-matrix, release-kandidaat |
 | `prod` | eigen project, backups + PITR | publieke store-build + PWA | echte gebruikers |
 

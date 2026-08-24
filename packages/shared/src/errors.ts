@@ -22,8 +22,9 @@ export const API_ERROR_CODES = [
   'photo_not_found',
   'user_not_found',
   'invalid_action',
-  'duplicate_nearby',
   'own_report_cooldown',
+  'note_too_long',
+  'invalid_photo_path',
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
@@ -101,6 +102,8 @@ export function isTerminal(code: ParsedCode): boolean {
     case 'feature_disabled':
     case 'forbidden':
     case 'invalid_action':
+    case 'note_too_long':
+    case 'invalid_photo_path':
       return true;
     default:
       return false;
@@ -148,8 +151,9 @@ export const ERROR_TEXT_NL: Record<ParsedCode, string> = {
   photo_not_found: 'De foto is niet gevonden.',
   user_not_found: 'Gebruiker niet gevonden.',
   invalid_action: 'Deze actie bestaat niet.',
-  duplicate_nearby: 'Je hebt dit hier al gemeld.',
   own_report_cooldown: 'Wacht even voordat je je eigen melding opruimt.',
+  note_too_long: 'Je notitie is te lang (maximaal 280 tekens).',
+  invalid_photo_path: 'De foto kon niet gekoppeld worden. Probeer opnieuw.',
   network: 'Geen verbinding. Je melding wordt verstuurd zodra je weer online bent.',
   unknown: 'Er ging iets mis. Probeer het opnieuw.',
 };

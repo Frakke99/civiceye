@@ -36,6 +36,12 @@ waarop iemand herkenbaar staat, is de schade al aan het gebeuren terwijl je op
 een tweede klacht wacht. Bij "ligt er niet meer" is dat niet zo — daar is een
 vergissing waarschijnlijker dan misbruik.
 
+De keerzijde: één `private_person`-flag van eender welk account verbergt een
+melding meteen — dat is óók een goedkoop censuurkanaal. Aanvaard voor v1,
+omdat een onterecht verborgen melding minder schade doet dan een terecht
+geklaagde foto die blijft staan; geblokkeerde accounts kunnen niet flaggen, en
+wie het misbruikt wordt geblokkeerd.
+
 Alle drempels staan in `app_config` en zijn **zonder deploy** aanpasbaar. Bij
 een aanval wil je de drempel in dertig seconden op 1 kunnen zetten.
 

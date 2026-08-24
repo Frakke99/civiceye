@@ -8,14 +8,14 @@
 #
 # Optioneel, om ook het schrijfpad te testen (zie QUICKSTART.md hoe je een
 # anoniem JWT krijgt):
-#   GC_JWT=eyJ... ./scripts/smoke-api.sh
+#   CIVICEYE_JWT=eyJ... ./scripts/smoke-api.sh
 set -uo pipefail
 
 : "${SUPABASE_URL:?zet SUPABASE_URL, bv. https://xxx.supabase.co}"
 : "${SUPABASE_ANON_KEY:?zet SUPABASE_ANON_KEY (de publieke anon key)}"
 
 REST="${SUPABASE_URL%/}/rest/v1/rpc"
-JWT="${GC_JWT:-$SUPABASE_ANON_KEY}"
+JWT="${CIVICEYE_JWT:-$SUPABASE_ANON_KEY}"
 fouten=0
 
 rpc() { # rpc <functie> <json>
@@ -94,7 +94,7 @@ else
 fi
 
 # --- 7. schrijfpad, alleen met een echt gebruikers-JWT --------------------
-if [ -n "${GC_JWT:-}" ]; then
+if [ -n "${CIVICEYE_JWT:-}" ]; then
   ref="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen)"
   res="$(rpc create_report "{\"p_client_ref\":\"$ref\",\"p_lat\":51.2194,\"p_lng\":4.4025,\"p_kind\":\"litter\",\"p_size\":\"bag\",\"p_note\":\"smoketest\",\"p_client\":\"web\"}")"
   if printf '%s' "$res" | grep -q '"report_id"'; then
@@ -117,7 +117,7 @@ if [ -n "${GC_JWT:-}" ]; then
     fout "servicegebied werd niet afgedwongen: $res"
   fi
 else
-  echo "over   — schrijfpad (zet GC_JWT om create_report te testen)"
+  echo "over   — schrijfpad (zet CIVICEYE_JWT om create_report te testen)"
 fi
 
 echo

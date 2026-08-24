@@ -51,16 +51,12 @@ wil je individuele pins kunnen aantikken.
 
 ## Onderbouwing met metingen
 
-`db/test/20_perf.sql`, Postgres 16 + PostGIS 3.4:
-
-| Meldingen | zoom 16 | zoom 12 | zoom 8 |
-| --------- | ------- | ------- | ------ |
-| 50 000 | 3 ms | 10 ms | 104 ms |
-| 500 000 | 2 ms | 25 ms | 712 ms |
-
-De ingezoomde weergave — waar gebruikers vrijwel altijd zitten — blijft ook bij
-een half miljoen meldingen ruim binnen de SLO. Alleen de uitgezoomde aggregatie
-loopt uit de hand.
+Gemeten met `db/test/20_perf.sql` (reproduceerbaar via `-v n=500000`); de
+volledige tabel staat op één plek, in
+[docs/06](../06-kaart-en-performance.md#gemeten-performance). De conclusie: de
+ingezoomde weergave — waar gebruikers vrijwel altijd zitten — blijft ook bij
+een half miljoen meldingen ruim binnen de SLO; alleen de uitgezoomde aggregatie
+loopt uit de hand, en precies daarvoor ligt de cluster-cache klaar.
 
 ## Gevolgen
 

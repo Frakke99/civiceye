@@ -58,7 +58,8 @@ biedt "bevestigen" aan in plaats van een duplicaat.
   "p_client": "ios", "p_app_version": "1.0.0" }
 ```
 
-Antwoord (nieuw): `{ "report_id", "photo_id", "status": "published", "created_at", "nearby_count" }`
+Antwoord bij een nieuwe melding:
+`{ "report_id", "photo_id", "status": "published", "created_at", "nearby_count" }`
 
 Twee antwoorden die géén fout zijn en die de app apart moet behandelen:
 
@@ -76,10 +77,25 @@ quarantaine.
 
 ### `POST /rest/v1/rpc/confirm_report` — "ligt er nog" *(auth)*
 
+`{ "p_report_id" }` → `{ "report_id", "confirm_count" }`. Idempotent per
+gebruiker: twee keer bevestigen telt één keer. Alleen op gepubliceerde
+meldingen; anders `report_not_found`.
+
 ### `POST /rest/v1/rpc/mark_cleaned` — opgeruimd *(auth, fase 2)*
 
 `{ "p_report_id", "p_lat", "p_lng", "p_photo_path" }`. Staat uit tot
 `app_config.cleanups_enabled` op `true` gaat.
+
+### Moderatie *(trust_level 3 of de service-key)*
+
+| RPC | Doet |
+| --- | ---- |
+| `moderate_report` | `{ "p_report_id", "p_action": "restore"/"remove"/"quarantine", "p_reason" }` — logt in `moderation_events` |
+| `block_user` | `{ "p_user_id", "p_days" (default 30), "p_reason" }` — vanaf 3650 dagen permanent (`trust_level -1`) |
+
+Beide zijn aan `authenticated` gegrant (de functie eist zelf moderatorrechten)
+en aan `service_role` voor de beheerconsole. `complete_photo_scan` en
+`purge_old_data` zijn **enkel** aan `service_role` gegrant.
 
 ### Edge Functions
 
@@ -92,7 +108,8 @@ quarantaine.
 ## Foutcodes
 
 PostgREST geeft de exception-message door in `message`. Codes zijn stabiel;
-teksten staan in de app (`i18n/nl.json`), zodat vertalen geen backend-release is.
+de teksten staan in de app (`packages/shared/src/errors.ts`, sprint 5 verhuist
+ze naar `i18n/nl.json`), zodat vertalen geen backend-release is.
 
 | Code | HTTP | Betekenis | Wat de app doet |
 | ---- | ---- | --------- | --------------- |
@@ -105,10 +122,16 @@ teksten staan in de app (`i18n/nl.json`), zodat vertalen geen backend-release is
 | `rate_limited` | 400 | te veel meldingen (`detail`: `hour`/`day`) | wachten tonen, outbox behouden, retry na 1 u |
 | `report_not_found` | 400 | verwijderd of nooit bestaan | van de kaart halen |
 | `bbox_too_large` | 400 | kaartvenster te groot | uitzoomen begrenzen |
+| `invalid_bbox` | 400 | bbox-parameter ontbreekt | bug — naar Sentry (buiten bereik wordt geclampt, niet geweigerd) |
+| `note_too_long` | 400 | notitie langer dan 280 tekens | UI moet dit voorkomen |
+| `invalid_photo_path` | 400 | fotopad leeg/ongeldig/al in gebruik | upload opnieuw starten |
 | `feature_disabled` | 400 | fase-2-functie staat uit | knop verbergen |
 | `too_far_away` | 400 | te ver van de melding om ze op te ruimen (`detail`: meters) | afstand tonen |
 | `already_cleaned` | 400 | iemand was je voor | verversen |
-| `forbidden` | 400 | geen moderator | knop verbergen |
+| `own_report_cooldown` | 400 | eigen melding <5 min oud opruimen | wachttijd tonen |
+| `forbidden` | 400 | geen moderator en geen service-key | knop verbergen |
+| `invalid_action` | 400 | onbekende moderatie-actie | bug — naar Sentry |
+| `user_not_found` / `photo_not_found` | 400 | doelwit bestaat niet | verversen |
 
 ## Idempotentie en retries
 
@@ -121,7 +144,7 @@ Retrybeleid in de app:
 
 | Situatie | Gedrag |
 | -------- | ------ |
-| netwerkfout, 5xx, timeout | exponentiële backoff (2 s, 4 s, 8 s, 30 s, 5 min), onbeperkt zolang de app leeft, blijft in de outbox |
+| netwerkfout, 5xx, timeout | exponentiële backoff (2 s, 4 s, 8 s, 30 s, 5 min, daarna elk kwartier), onbeperkt zolang de app leeft, blijft in de outbox |
 | `rate_limited` | pauzeer de outbox 1 uur |
 | `outside_service_area`, `invalid_*`, `size_required` | definitief; uit de outbox, fout tonen |
 | `account_blocked` | outbox leegmaken, blokkadescherm |

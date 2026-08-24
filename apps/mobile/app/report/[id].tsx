@@ -7,6 +7,17 @@ import { relativeTimeNl, sizeLabelNl } from '@/map/markers';
 import { env } from '@/config/env';
 import { theme } from '@/ui/theme';
 
+/**
+ * Een eigen melding kan via RLS ook in quarantaine of verwijderd zichtbaar
+ * zijn; die heet dan niet misleidend "open".
+ */
+const STATUS_LABEL: Record<string, string> = {
+  published: 'open',
+  cleaned: 'opgeruimd',
+  quarantined: 'in behandeling',
+  removed: 'verwijderd',
+};
+
 export default function MeldingDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -83,7 +94,7 @@ function MeldingInhoud({ id }: { id: string }) {
           label="GPS-nauwkeurigheid"
           waarde={data.accuracyM === null ? 'onbekend' : `± ${Math.round(data.accuracyM)} m`}
         />
-        <Rij label="Status" waarde={data.status === 'cleaned' ? 'opgeruimd' : 'open'} />
+        <Rij label="Status" waarde={STATUS_LABEL[data.status] ?? data.status} />
         {data.confirmCount > 0 ? (
           <Rij label="Bevestigd door" waarde={`${data.confirmCount} mensen`} />
         ) : null}

@@ -29,4 +29,13 @@ echo "→ smoketests"
 echo "→ tests opnieuw, nu hard falend bij de eerste fout"
 "${PSQL[@]}" -d "$DB" -f db/test/10_tests.sql > /dev/null
 
+# De opschaalstap is voorgeschreven maar nog niet actief; hij moet wel op
+# elke schemaversie blijven passen én dezelfde aantallen geven als de live
+# query. Seed eerst, want de pariteitstest vergelijkt op echte data.
+echo "→ opschaalstap: seed + cluster-cache + pariteit"
+"${PSQL[@]}" -d "$DB" -f db/seed/dev_seed.sql > /dev/null
+"${PSQL[@]}" -d "$DB" -f db/scale/0100_cluster_cache.sql > /dev/null
+"${PSQL[@]}" -d "$DB" -f db/test/30_cluster_cache.sql 2>&1 | grep -E "^(NOTICE|ERROR|psql)" || true
+"${PSQL[@]}" -d "$DB" -f db/test/30_cluster_cache.sql > /dev/null
+
 echo "✓ alle migraties en tests geslaagd op $DB"

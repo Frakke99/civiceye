@@ -28,6 +28,19 @@ jobs:
         with:
           version: latest
 
+      - name: Migraties in CLI-formaat klaarzetten
+        # De Supabase CLI verwacht supabase/migrations/<tijdstempel>_naam.sql.
+        # Wij nummeren 0001..000n; de afgeleide tijdstempel is deterministisch,
+        # zodat db push over releases heen bijhoudt wat al toegepast is.
+        run: |
+          mkdir -p supabase/migrations
+          i=0
+          for f in db/migrations/*.sql; do
+            i=$((i+1))
+            cp "$f" "supabase/migrations/$(printf '20260101%06d' "$i")_$(basename "$f")"
+          done
+          ls supabase/migrations
+
       - name: Migraties naar staging
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -39,7 +52,12 @@ jobs:
       - name: Edge Functions naar staging
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: supabase functions deploy --project-ref "${{ vars.STAGING_PROJECT_REF }}"
+        run: |
+          if [ -d supabase/functions ]; then
+            supabase functions deploy --project-ref "${{ vars.STAGING_PROJECT_REF }}"
+          else
+            echo "nog geen edge functions (sprint 3) — stap overgeslagen"
+          fi
 
       - uses: pnpm/action-setup@v4 # pnpm-versie komt uit packageManager in package.json
       - uses: actions/setup-node@v4
@@ -56,13 +74,24 @@ jobs:
       - name: iOS + Android bouwen en naar de testkanalen sturen
         run: eas build --profile staging --platform all --non-interactive --auto-submit
 
+      # web:build draait ook prepare:web (de maplibre-worker, zie
+      # scripts/prepare-web-assets.mjs); zonder die stap is de kaart leeg.
       - name: Web-build
-        run: pnpm --filter mobile exec expo export --platform web
+        run: pnpm web:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: apps/mobile/dist
+          retention-days: 14
 
   production:
     name: Naar productie (na go/no-go)
     needs: staging
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Op een versietag, of via een handmatige dispatch met target=production —
+    # zonder deze tweede voorwaarde deed de dispatch-input niets.
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
     runs-on: ubuntu-latest
     # De environment 'production' heeft een verplichte reviewer in GitHub:
     # dat ís de go/no-go-poort uit docs/10-rollout-en-testplan.md
@@ -88,6 +117,19 @@ jobs:
           path: pre-release-dump.sql
           retention-days: 30
 
+      - name: Migraties in CLI-formaat klaarzetten
+        # De Supabase CLI verwacht supabase/migrations/<tijdstempel>_naam.sql.
+        # Wij nummeren 0001..000n; de afgeleide tijdstempel is deterministisch,
+        # zodat db push over releases heen bijhoudt wat al toegepast is.
+        run: |
+          mkdir -p supabase/migrations
+          i=0
+          for f in db/migrations/*.sql; do
+            i=$((i+1))
+            cp "$f" "supabase/migrations/$(printf '20260101%06d' "$i")_$(basename "$f")"
+          done
+          ls supabase/migrations
+
       - name: Migraties naar productie
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -97,7 +139,12 @@ jobs:
       - name: Edge Functions naar productie
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: supabase functions deploy --project-ref "${{ vars.PROD_PROJECT_REF }}"
+        run: |
+          if [ -d supabase/functions ]; then
+            supabase functions deploy --project-ref "${{ vars.PROD_PROJECT_REF }}"
+          else
+            echo "nog geen edge functions (sprint 3) — stap overgeslagen"
+          fi
 
       - uses: pnpm/action-setup@v4 # pnpm-versie komt uit packageManager in package.json
       - uses: actions/setup-node@v4

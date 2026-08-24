@@ -95,8 +95,13 @@
 </footer>
 
 <script>
-const LS = 'gc-viewer-config';
+const LS = 'civiceye-viewer-config';
 const $ = (id) => document.getElementById(id);
+// Alles wat van de API komt kan door een melder getypt zijn (notities!) en
+// gaat hier in innerHTML — zonder escapen is dat XSS in de browser van wie
+// diagnosticeert.
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const cfg = (() => {
   try { return JSON.parse(localStorage.getItem(LS) || 'null'); } catch { return null; }
@@ -165,7 +170,7 @@ function renderList(rows) {
     <tr>
       <td>${r.is_cluster ? '⬤ cluster' : (ICON[r.size] || '📍')}</td>
       <td>${r.point_count}</td>
-      <td>${r.is_cluster ? '—' : (r.size || r.kind)}</td>
+      <td>${r.is_cluster ? '—' : esc(r.size || r.kind)}</td>
       <td>${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</td>
       <td>${r.has_photo ? 'ja' : '—'}</td>
       <td>${new Date(r.created_at).toLocaleDateString('nl-BE')}</td>
@@ -242,11 +247,11 @@ async function startMap() {
       const d = await rpc('report_details', { p_report_id: id });
       new maplibregl.Popup({ closeButton: true })
         .setLngLat([d.lng, d.lat])
-        .setHTML(`<strong>${d.size || d.kind}</strong><br>
-          ${d.note ? d.note + '<br>' : ''}
+        .setHTML(`<strong>${esc(d.size || d.kind)}</strong><br>
+          ${d.note ? esc(d.note) + '<br>' : ''}
           gemeld ${new Date(d.created_at).toLocaleString('nl-BE')}<br>
           ${d.photos.length ? d.photos.length + ' foto(s)' : 'geen foto'}<br>
-          nauwkeurigheid: ${d.accuracy_m ?? '?'} m`)
+          nauwkeurigheid: ${esc(d.accuracy_m ?? '?')} m`)
         .addTo(map);
     } catch (err) {
       alert(err.message);
@@ -266,7 +271,7 @@ async function start() {
   } catch (e) {
     $('fallback').hidden = false;
     $('fallback').innerHTML =
-      `<p class="err">${e.message}</p>
+      `<p class="err">${esc(e.message)}</p>
        <p class="note">Controleer de URL en de anon key, en of de migraties
        toegepast zijn. <a href="#" id="again">Instellingen aanpassen</a></p>`;
     document.getElementById('again')?.addEventListener('click', (ev) => {

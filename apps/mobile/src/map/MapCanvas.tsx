@@ -6,7 +6,7 @@
  * lijstweergave met uitleg. Voor de echte kaart op een toestel heb je een
  * development build nodig (`npx expo run:android` / `eas build --profile development`).
  */
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Bbox } from '@civiceye/shared';
 import { mapStyle, styleHasLabels } from './style';
@@ -50,11 +50,51 @@ interface NativePressEvent {
 export function MapCanvas({
   markers,
   initialCenter,
+  focus,
   onViewportChange,
   onSelectReport,
   onSelectCluster,
 }: MapCanvasProps) {
   const laatsteZoom = useRef(initialCenter.zoom);
+  // Refs naar de MapLibre-componenten; `any` omdat de module optioneel is
+  // (Expo Go) en de types dus niet statisch geïmporteerd kunnen worden.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cameraRef = useRef<any>(null);
+
+  // Clustertik: de camera beweegt, de kaart zelf blijft staan (zie types.ts).
+  useEffect(() => {
+    if (!focus) return;
+    cameraRef.current?.setCamera({
+      centerCoordinate: [focus.lng, focus.lat],
+      zoomLevel: focus.zoom,
+      animationDuration: 400,
+    });
+  }, [focus]);
+
+  // De eerste viewport expliciet melden zodra de kaart geladen is: web doet
+  // dit in zijn load-handler, en zonder deze melding blijft de kaartquery
+  // uitgeschakeld ("Geen meldingen in beeld") tot de gebruiker pant.
+  const meldEersteViewport = useCallback(async () => {
+    const m = mapRef.current;
+    if (!m) return;
+    try {
+      // getVisibleBounds geeft [noordoost, zuidwest] als [lng, lat]-paren.
+      const [ne, sw] = await m.getVisibleBounds();
+      const zoom = await m.getZoom();
+      const center = await m.getCenter();
+      laatsteZoom.current = zoom;
+      onViewportChange({
+        bbox: { minLng: sw[0], minLat: sw[1], maxLng: ne[0], maxLat: ne[1] },
+        zoom,
+        centerLng: center[0],
+        centerLat: center[1],
+      });
+    } catch {
+      // Stil: dan komt de viewport alsnog binnen via de eerste onRegionDidChange.
+    }
+  }, [onViewportChange]);
 
   const onRegionDidChange = useCallback(
     (event: NativeRegionEvent) => {
@@ -95,8 +135,15 @@ export function MapCanvas({
 
   return (
     <View style={styles.root}>
-      <Map style={styles.map} mapStyle={mapStyle()} onRegionDidChange={onRegionDidChange}>
+      <Map
+        ref={mapRef}
+        style={styles.map}
+        mapStyle={mapStyle()}
+        onRegionDidChange={onRegionDidChange}
+        onDidFinishLoadingMap={meldEersteViewport}
+      >
         <Camera
+          ref={cameraRef}
           initialViewState={{
             center: [initialCenter.lng, initialCenter.lat],
             zoom: initialCenter.zoom,

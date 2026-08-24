@@ -49,11 +49,26 @@ const pageErrors = [];
 let huidigePagina = '/';
 const consoleErrors = [];
 page.on('pageerror', (e) => { pageErrors.push(`[${huidigePagina}] ${e.message.slice(0, 90)}`); });
-page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+page.on('console', (m) => {
+  // "Failed to load resource" is de browser die een 4xx logt; een 400 op een
+  // onbestaande melding is hier verwácht gedrag (check 8). Echte fouten uit
+  // onze eigen code hebben een eigen boodschap.
+  if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) {
+    consoleErrors.push(`[${huidigePagina}] ${m.text().slice(0, 120)}`);
+  }
+});
 
+// Wachten op condities, niet op de klok: een vaste sleep is op een trage
+// CI-runner te kort (valse fout) en op een snelle verspilde tijd.
 huidigePagina = '/';
 await page.goto('http://127.0.0.1:8810/', { waitUntil: 'domcontentloaded' });
-await page.waitForTimeout(2500);
+await page.waitForFunction(() => {
+  const m = globalThis.__civicEyeMap;
+  // Eerst checken of de laag bestaat: queryRenderedFeatures op een onbekende
+  // laag laat maplibre een error-event vuren, en dat is geen echte fout.
+  return !!m && m.isStyleLoaded() && !!m.getLayer('meldingen-bel')
+    && m.queryRenderedFeatures({ layers: ['meldingen-bel'] }).length > 0;
+}, undefined, { timeout: 20000 }).catch(() => { /* de checks hieronder rapporteren wat er mis is */ });
 
 // --- 1. de app start ---
 check('app start zonder JS-fouten', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '));
@@ -112,6 +127,37 @@ const worker = await page.evaluate(async () => {
 check('de maplibre-worker wordt als javascript geserveerd',
   worker.status === 200 && !worker.isHtml, JSON.stringify(worker));
 
+// --- 5b. clustertik: camera beweegt, kaart blijft staan ---
+// Een remount (nieuwe WebGL-context) bij elke tik was een echte bug; daarom
+// controleren we op dezelfde kaartinstantie, niet alleen op de zoom.
+const voorTik = await page.evaluate(() => {
+  const m = globalThis.__civicEyeMap;
+  globalThis.__kaartVoorTik = m;
+  const cluster = m.queryRenderedFeatures({ layers: ['meldingen-bel'] })
+    .find((f) => String(f.properties.isCluster) === 'true');
+  if (!cluster) return null;
+  const p = m.project(cluster.geometry.coordinates);
+  return { zoom: m.getZoom(), x: p.x, y: p.y };
+});
+if (voorTik) {
+  await page.mouse.click(voorTik.x, voorTik.y);
+  // Wachten tot de animatie klaar is (+2 zoomniveaus), niet tot ze begint.
+  await page.waitForFunction(
+    (z) => !globalThis.__civicEyeMap.isMoving() && globalThis.__civicEyeMap.getZoom() >= z + 1.9,
+    voorTik.zoom, { timeout: 10000 },
+  ).catch(() => {});
+  const naTik = await page.evaluate(() => ({
+    zoom: globalThis.__civicEyeMap.getZoom(),
+    zelfde: globalThis.__civicEyeMap === globalThis.__kaartVoorTik,
+    canvassen: globalThis.document.querySelectorAll('canvas').length,
+  }));
+  check('clustertik zoomt in zonder de kaart te herbouwen',
+    naTik.zoom > voorTik.zoom && naTik.zelfde && naTik.canvassen === 1,
+    `zoom ${voorTik.zoom} → ${naTik.zoom}, zelfde instantie: ${naTik.zelfde}`);
+} else {
+  check('clustertik zoomt in zonder de kaart te herbouwen', false, 'geen cluster gevonden');
+}
+
 // --- 6. de meldknop staat er, met de juiste raakvlakhoogte ---
 const knop = page.getByRole('button', { name: 'Afval melden' });
 const box = await knop.boundingBox();
@@ -124,18 +170,19 @@ check('meldknop staat rechtsonder (bereikbaar met één hand)',
 huidigePagina = '/report/aaaa1111-2222-3333-4444-555566667777';
 await page.goto('http://127.0.0.1:8810/report/aaaa1111-2222-3333-4444-555566667777',
   { waitUntil: 'domcontentloaded' });
-await page.waitForTimeout(1500);
+await page.getByText('Afvalzak').waitFor({ timeout: 15000 }).catch(() => {});
 const detail = (await page.textContent('body')) ?? '';
 check('detailscherm toont de melding', detail.includes('Afvalzak'), detail.slice(0, 40).trim());
 check('detailscherm toont de notitie', detail.includes('Zak naast het bankje'));
-check('detailscherm toont GPS-nauwkeurigheid', /±\s*9?\s*m|± 9 m|± 8 m/.test(detail) || detail.includes('± 9 m'),
+// De mock geeft accuracy 8.5 en de UI rondt af: "± 9 m".
+check('detailscherm toont GPS-nauwkeurigheid', detail.includes('± 9 m'),
   detail.match(/±[^·\n]{0,8}/)?.[0] ?? 'niet gevonden');
 
 // --- 8. onbestaande melding geeft een nette fout ---
 huidigePagina = '/report/00000000-0000-0000-0000-000000000000';
 await page.goto('http://127.0.0.1:8810/report/00000000-0000-0000-0000-000000000000',
   { waitUntil: 'domcontentloaded' });
-await page.waitForTimeout(1200);
+await page.getByText('bestaat niet meer').waitFor({ timeout: 15000 }).catch(() => {});
 const nietGevonden = (await page.textContent('body')) ?? '';
 check('onbestaande melding geeft een Nederlandse fout, geen crash',
   nietGevonden.includes('bestaat niet meer'), nietGevonden.slice(0, 50).trim());
@@ -143,7 +190,7 @@ check('onbestaande melding geeft een Nederlandse fout, geen crash',
 // --- 9. instellingenscherm als diagnose ---
 huidigePagina = '/settings';
 await page.goto('http://127.0.0.1:8810/settings', { waitUntil: 'domcontentloaded' });
-await page.waitForTimeout(1200);
+await page.getByText('127.0.0.1:8811').waitFor({ timeout: 15000 }).catch(() => {});
 const inst = (await page.textContent('body')) ?? '';
 check('instellingen tonen de omgeving en het backend', inst.includes('127.0.0.1:8811'));
 check('instellingen tonen de sessiestatus', /Anonieme sessie/.test(inst));
@@ -152,12 +199,14 @@ check('instellingen melden dat er geen kaartkey is', inst.includes('geen key'));
 // --- 10. de meldflow-route legt eerlijk uit dat ze nog niet bestaat ---
 huidigePagina = '/report/nieuw';
 await page.goto('http://127.0.0.1:8810/report/nieuw', { waitUntil: 'domcontentloaded' });
-await page.waitForTimeout(800);
+await page.getByText('volgende versie').waitFor({ timeout: 15000 }).catch(() => {});
 const nieuw = (await page.textContent('body')) ?? '';
 check('/report/nieuw legt uit dat melden nog komt', nieuw.includes('volgende versie'));
 
 check('geen onafgehandelde JS-fouten in de hele run', pageErrors.length === 0,
   pageErrors.slice(0, 2).join(' | '));
+check('geen console.error in de hele run', consoleErrors.length === 0,
+  consoleErrors.slice(0, 2).join(' | '));
 
 await browser.close();
 web.close(); api.server.close();

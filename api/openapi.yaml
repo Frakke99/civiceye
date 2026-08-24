@@ -328,6 +328,35 @@ paths:
         '400':
           $ref: '#/components/responses/DomainError'
 
+  /rest/v1/rpc/block_user:
+    post:
+      tags: [moderatie]
+      summary: Gebruiker blokkeren (moderator of service-key)
+      operationId: blockUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [p_user_id]
+              properties:
+                p_user_id: { type: string, format: uuid }
+                p_days: { type: integer, minimum: 1, default: 30 }
+                p_reason: { type: [string, "null"] }
+      responses:
+        '200':
+          description: Blokkade gezet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: string, format: uuid }
+                  blocked_days: { type: integer }
+        '400':
+          $ref: '#/components/responses/DomainError'
+
   /functions/v1/upload-url:
     post:
       tags: [fotos]

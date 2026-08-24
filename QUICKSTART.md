@@ -29,7 +29,7 @@ chatvenster.
 | ----------------- | -------------- |
 | Windows | **Windows Terminal** of **PowerShell** (Start → "terminal") |
 | macOS | **Terminal** (Cmd+Space → "terminal") |
-| Linux | je gewone terminal |
+| Linux | je gewone terminal — Node 22, git en pnpm via je packagemanager |
 
 ### Eenmalig: Node, pnpm en git installeren
 
@@ -93,16 +93,17 @@ nagemaakt backend. Wil je je eigen data zien, ga dan naar laag 2 en 3.
 ## Laag 1 — backend lokaal (5 minuten)
 
 Bewijst dat het schema, de rate limits, de moderatie, de fotopijplijn en RLS
-doen wat ze beloven: 48 assertions tegen een echte Postgres.
+doen wat ze beloven: 69 assertions tegen een echte Postgres, plus een
+pariteitstest van de opschaalstap.
 
 ### Met Docker (aanbevolen — zelfde image als CI)
 
 ```bash
-docker run --rm -d --name gc-db \
+docker run --rm -d --name civiceye-db \
   -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgis/postgis:16-3.4
 
 # even wachten tot hij klaar is
-until docker exec gc-db pg_isready -q; do sleep 1; done
+until docker exec civiceye-db pg_isready -q; do sleep 1; done
 
 PGHOST=localhost PGUSER=postgres PGPASSWORD=postgres ./db/test/run_tests.sh
 ```
@@ -115,7 +116,7 @@ brew install postgresql@16 postgis                              # macOS
 ./db/test/run_tests.sh
 ```
 
-Je verwacht `✓ alle migraties en tests geslaagd`, met daarvoor 48 regels `ok —`.
+Je verwacht `✓ alle migraties en tests geslaagd`, met daarvoor 78 regels `ok —`.
 Zie je iets anders, dan is dat een echte fout en niet een omgevingsprobleem —
 de tests hebben geen netwerk of Supabase-project nodig.
 
@@ -177,7 +178,7 @@ psql "$DB_URL" -f db/seed/dev_seed.sql
 ```
 
 Je verwacht een tabel met ~212 meldingen, waarvan een deel opgeruimd en een deel
-in quarantaine, zodat je alle vier de statussen ziet.
+in quarantaine — de statussen die je op de kaart kan tegenkomen.
 
 > Lukt dit niet omdat het `auth.users` niet mag aanraken, maak dan twee
 > gebruikers via *Authentication → Users → Add user* en vervang de twee uuid's
@@ -202,6 +203,17 @@ Dit script test in ~10 seconden de dingen die je écht wil weten:
 
 Alle regels moeten `ok` zijn. Een `FOUT — LEK:`-regel betekent dat de grants of
 RLS niet goed staan.
+
+Wil je ook het schrijfpad testen (`create_report`), geef dan een echt
+gebruikers-JWT mee. Dat haal je op met de anonieme aanmelding:
+
+```bash
+curl -s -X POST "$SUPABASE_URL/auth/v1/signup" \
+  -H "apikey: $SUPABASE_ANON_KEY" -H "Content-Type: application/json" -d '{}' \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])'
+
+CIVICEYE_JWT=<dat token> ./scripts/smoke-api.sh
+```
 
 ### 6. Op je telefoon bekijken
 

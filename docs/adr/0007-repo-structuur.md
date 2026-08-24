@@ -34,7 +34,8 @@ docs/           architectuur
 
 ## Gevolgen
 
-- `db/migrations` is de bron; `supabase/migrations` is een symlink, zodat de
+- `db/migrations` is de bron; de release-workflow zet er tijdstempelkopieën
+  van in `supabase/migrations` klaar, zodat de
   Supabase CLI werkt zonder de bestanden te dupliceren.
 - Edge Functions zijn Deno en de apps zijn Node. Die twee runtimes leven naast
   elkaar met aparte configuratie; `packages/shared` blijft daarom bewust

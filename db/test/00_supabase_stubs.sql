@@ -24,6 +24,11 @@ $$;
 
 grant usage on schema public to anon, authenticated, service_role;
 
+-- Supabase geeft service_role standaard alle rechten op tabellen in public.
+-- Dat bootsen we na voor de tabellen die de migraties hierna aanmaken, anders
+-- gedragen tests met `set role service_role` zich strenger dan de echte dienst.
+alter default privileges in schema public grant all on tables to service_role;
+
 create schema if not exists auth;
 
 create table if not exists auth.users (

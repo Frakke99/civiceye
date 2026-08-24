@@ -37,7 +37,7 @@ done
 fouten=0
 
 echo "=== 1. correct geconfigureerd project → moet slagen ==="
-if SUPABASE_URL="http://127.0.0.1:$PORT_OK" SUPABASE_ANON_KEY=anonkey GC_JWT=USERJWT \
+if SUPABASE_URL="http://127.0.0.1:$PORT_OK" SUPABASE_ANON_KEY=anonkey CIVICEYE_JWT=USERJWT \
      ./scripts/smoke-api.sh; then
   echo "ok — smoke-api slaagt op een correct project"
 else

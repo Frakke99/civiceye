@@ -91,6 +91,17 @@ select pg_temp.expect_error(
 select pg_temp.expect_error(
   $$ select public.create_report(gen_random_uuid(), 48.85, 2.35, 'litter', 'bag') $$,
   'outside_service_area');  -- Parijs
+select pg_temp.expect_error(
+  $$ select public.create_report(gen_random_uuid(), null, null, 'litter', 'bag') $$,
+  'invalid_coordinates');
+select pg_temp.expect_error(
+  $$ select public.create_report(gen_random_uuid(), 51.2, 4.4, 'litter', 'bag',
+       repeat('x', 281)) $$,
+  'note_too_long');
+select pg_temp.expect_error(
+  $$ select public.create_report(gen_random_uuid(), 51.2, 4.4, 'litter', 'bag',
+       null, null, '../../etc/passwd') $$,
+  'invalid_photo_path');
 
 -- --- 5. eigen duplicaat binnen 15 m ---------------------------------------
 select pg_temp.assert(
@@ -148,6 +159,31 @@ select pg_temp.expect_error(
   $$ select public.report_details('00000000-0000-0000-0000-000000000000') $$,
   'report_not_found');
 
+-- --- 9b. confirm_report: idempotent per gebruiker --------------------------
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', true);
+do $$
+declare v_id uuid; v_res jsonb;
+begin
+  select id into v_id from public.reports
+  where created_by = '11111111-1111-1111-1111-111111111111' limit 1;
+
+  v_res := public.confirm_report(v_id);
+  if (v_res ->> 'confirm_count')::int <> 1 then
+    raise exception 'ASSERT FAILED: eerste bevestiging moet count 1 geven, kreeg %', v_res;
+  end if;
+
+  -- tweede keer door dezelfde gebruiker verandert niets
+  v_res := public.confirm_report(v_id);
+  if (v_res ->> 'confirm_count')::int <> 1 then
+    raise exception 'ASSERT FAILED: dubbele bevestiging mag niet dubbel tellen, kreeg %', v_res;
+  end if;
+  raise notice 'ok — confirm_report telt elke gebruiker één keer';
+end;
+$$;
+select pg_temp.expect_error(
+  $$ select public.confirm_report('00000000-0000-0000-0000-000000000000') $$,
+  'report_not_found');
+
 -- --- 10. flags en automatische quarantaine --------------------------------
 do $$
 declare
@@ -177,6 +213,42 @@ select pg_temp.assert(
   (select count(*) = 0 from public.map_reports(4.39, 51.21, 4.41, 51.23, 16)),
   'gequarantineerde melding staat niet meer op de kaart');
 
+-- --- 10b. de flagdrempel zelf: drie verschillende melders = quarantaine ----
+do $$
+declare v_id uuid; v_res jsonb;
+begin
+  select id into v_id from public.reports
+  where created_by = '22222222-2222-2222-2222-222222222222'
+    and status = 'published'
+  order by created_at limit 1;
+
+  perform set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', true);
+  v_res := public.flag_report(v_id, 'spam');
+
+  -- dezelfde gebruiker opnieuw: de reden wordt bijgewerkt, de teller niet
+  v_res := public.flag_report(v_id, 'not_there');
+  if (v_res ->> 'flag_count')::int <> 1 then
+    raise exception 'ASSERT FAILED: herflag door dezelfde gebruiker mag niet dubbel tellen, kreeg %', v_res;
+  end if;
+
+  perform set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
+  v_res := public.flag_report(v_id, 'spam');
+  if (v_res ->> 'status') <> 'published' then
+    raise exception 'ASSERT FAILED: twee flags mogen nog niet verbergen, kreeg %', v_res;
+  end if;
+
+  perform set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', true);
+  v_res := public.flag_report(v_id, 'wrong_location');
+  if (v_res ->> 'status') <> 'quarantined' or (v_res ->> 'flag_count')::int <> 3 then
+    raise exception 'ASSERT FAILED: de derde flag moet quarantaine geven, kreeg %', v_res;
+  end if;
+  raise notice 'ok — flagdrempel: herflag telt niet dubbel, drie melders verbergen';
+end;
+$$;
+select pg_temp.expect_error(
+  $$ select public.flag_report('00000000-0000-0000-0000-000000000000', 'spam') $$,
+  'report_not_found');
+
 -- --- 11. moderatie: herstellen ------------------------------------------------
 select set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
 do $$
@@ -194,10 +266,51 @@ select pg_temp.assert(
   (select count(*) >= 2 from public.moderation_events),
   'moderatiehandelingen worden gelogd');
 
--- niet-moderator mag niet modereren
+select set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
+select pg_temp.expect_error(
+  $$ select public.moderate_report((select id from public.reports limit 1), 'archive') $$,
+  'invalid_action');
+select pg_temp.expect_error(
+  $$ select public.moderate_report('00000000-0000-0000-0000-000000000000', 'remove') $$,
+  'report_not_found');
+
+-- de service-key (Edge Function, beheerconsole) mag modereren zonder uid
+do $$
+declare v_id uuid;
+begin
+  select id into v_id from public.reports
+  where created_by = '22222222-2222-2222-2222-222222222222'
+    and status = 'quarantined'
+  limit 1;
+
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  perform public.moderate_report(v_id, 'remove', 'spamgolf');
+  perform set_config('request.jwt.claim.role', '', true);
+
+  if (select status from public.reports where id = v_id) <> 'removed' then
+    raise exception 'ASSERT FAILED: service_role moet kunnen verwijderen';
+  end if;
+  if not exists (select 1 from public.moderation_events
+                 where report_id = v_id and action = 'remove' and actor_id is null) then
+    raise exception 'ASSERT FAILED: service-moderatie moet gelogd worden zonder actor';
+  end if;
+  raise notice 'ok — service_role modereert zonder uid, en het wordt gelogd';
+end;
+$$;
+
+-- niet-moderator mag niet modereren; een anon-key (geen uid, geen service-
+-- claim) evenmin — "geen uid" is nooit "vertrouwd"
 select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', true);
 select pg_temp.expect_error(
   $$ select public.moderate_report((select id from public.reports limit 1), 'remove') $$,
+  'forbidden');
+select set_config('request.jwt.claim.sub', '', true);
+select pg_temp.expect_error(
+  $$ select public.moderate_report((select id from public.reports limit 1), 'remove') $$,
+  'forbidden');
+select pg_temp.expect_error(
+  $$ select public.block_user('22222222-2222-2222-2222-222222222222') $$,
   'forbidden');
 
 -- --- 12. opruimen staat uit in v1 ----------------------------------------
@@ -238,7 +351,78 @@ select pg_temp.assert(
    where created_by = '11111111-1111-1111-1111-111111111111' limit 1),
   'melding staat op opgeruimd');
 
+-- een NULL-locatie mag de afstandscheck niet stil omzeilen
+select pg_temp.expect_error(
+  $$ select public.mark_cleaned(
+       (select id from public.reports where status = 'published' limit 1),
+       null, null) $$,
+  'invalid_coordinates');
+
+-- je eigen melding meteen "opruimen" is puntenfraude: 5 minuten wachten
+select set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
+do $$
+declare v_id uuid;
+begin
+  v_id := (public.create_report(gen_random_uuid(), 51.05, 4.05, 'litter', 'piece')
+           ->> 'report_id')::uuid;
+  begin
+    perform public.mark_cleaned(v_id, 51.05, 4.05);
+    raise exception 'ASSERT FAILED: eigen melding meteen opruimen moet geweigerd worden';
+  exception when others then
+    if sqlerrm not like 'own_report_cooldown%' then raise; end if;
+  end;
+  raise notice 'ok — eigen melding opruimen heeft een wachttijd';
+end;
+$$;
+
+-- moderatie op een opgeruimde melding: status én cleaned_at moeten samen
+-- terug (constraint cleaned_has_timestamp), en een herstelde melding kan
+-- niet nogmaals punten opleveren voor dezelfde opruimer
+do $$
+declare v_id uuid; v_lat double precision; v_lng double precision;
+begin
+  select id, st_y(geom::geometry), st_x(geom::geometry) into v_id, v_lat, v_lng
+  from public.reports
+  where created_by = '22222222-2222-2222-2222-222222222222'
+    and status = 'published'
+  order by created_at desc limit 1;
+
+  perform public.mark_cleaned(v_id, v_lat, v_lng);
+
+  perform public.moderate_report(v_id, 'quarantine', 'foto twijfelachtig');
+  if (select cleaned_at is not null from public.reports where id = v_id) then
+    raise exception 'ASSERT FAILED: quarantaine moet cleaned_at leegmaken';
+  end if;
+
+  perform public.moderate_report(v_id, 'restore', 'vals alarm');
+  begin
+    perform public.mark_cleaned(v_id, v_lat, v_lng);
+    raise exception 'ASSERT FAILED: tweede opruiming door dezelfde gebruiker moet geweigerd worden';
+  exception when others then
+    if sqlerrm not like 'already_cleaned%' then raise; end if;
+  end;
+  raise notice 'ok — moderatie op een opgeruimde melding, en geen dubbele punten';
+end;
+$$;
+
 update public.app_config set value = 'false'::jsonb where key = 'cleanups_enabled';
+
+-- --- 13b. kaartfilters: kinds en include_cleaned ---------------------------
+select pg_temp.assert(
+  (select count(*) = 0 from public.map_reports(4.39, 51.21, 4.41, 51.23, 16)),
+  'opgeruimde melding staat standaard niet op de kaart');
+select pg_temp.assert(
+  (select count(*) >= 1 from public.map_reports(4.39, 51.21, 4.41, 51.23, 16,
+     null, true)),
+  'met include_cleaned komt ze terug');
+select pg_temp.assert(
+  (select count(*) = 0 from public.map_reports(3.9, 50.9, 4.1, 51.1, 15,
+     array['hazard']::public.report_kind[])),
+  'het kinds-filter filtert echt');
+-- een bbox tot op de rand van de wereld mag geen rauwe PostGIS-fout geven
+select pg_temp.assert(
+  (select count(*) >= 0 from public.map_reports(4.0, 89.5, 4.5, 90.0, 14)),
+  'bbox op de wereldrand wordt geclampt, niet geweigerd');
 
 -- --- 14. foto-pipeline ---------------------------------------------------
 select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', true);
@@ -308,11 +492,26 @@ select pg_temp.assert(
   (select (public.purge_old_data() ->> 'audit_deleted')::int >= 1),
   'purge_old_data wist auditrijen na de bewaartermijn');
 
-update public.report_photos set created_at = now() - interval '2 days'
-where scan_status = 'pending';
-select pg_temp.assert(
-  (select (public.purge_old_data() ->> 'photos_failed')::int >= 0),
-  'purge_old_data markeert vastgelopen scans als failed');
+-- er is op dit punt geen enkele pending foto meer (safe/flagged in test 14),
+-- dus maken we er één en laten we ze "vastlopen" door te backdaten
+select set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
+do $$
+declare v_photo uuid;
+begin
+  v_photo := (public.create_report(gen_random_uuid(), 51.32, 4.52, 'litter', 'piece',
+                null, null, 'inbox/2026/08/stuck.jpg') ->> 'photo_id')::uuid;
+  update public.report_photos set created_at = now() - interval '2 days'
+  where id = v_photo;
+
+  if (public.purge_old_data() ->> 'photos_failed')::int <> 1 then
+    raise exception 'ASSERT FAILED: precies één vastgelopen scan verwacht';
+  end if;
+  if (select scan_status from public.report_photos where id = v_photo) <> 'failed' then
+    raise exception 'ASSERT FAILED: vastgelopen scan moet op failed staan';
+  end if;
+  raise notice 'ok — purge_old_data markeert vastgelopen scans als failed';
+end;
+$$;
 
 -- --- 17. IP-hash: nooit een ruw IP, wel correleerbaar -------------------
 -- Gebruiker 3, want 1 is geblokkeerd (test 15) en 2 zit aan zijn rate limit (test 6).
@@ -336,7 +535,7 @@ $$;
 
 -- met headers zoals PostgREST ze doorgeeft
 select set_config('request.headers',
-  '{"x-forwarded-for":"81.240.10.7, 10.0.0.1","user-agent":"GlobalCleanup/1.0 (iPhone)"}',
+  '{"x-forwarded-for":"81.240.10.7, 10.0.0.1","user-agent":"CivicEye/1.0 (iPhone)"}',
   true);
 
 do $$
@@ -352,7 +551,7 @@ begin
   if v_audit.ip_hash like '%81.240%' or length(v_audit.ip_hash) <> 64 then
     raise exception 'ASSERT FAILED: ip_hash is geen sha256-hash: %', v_audit.ip_hash;
   end if;
-  if v_audit.user_agent <> 'GlobalCleanup/1.0 (iPhone)' then
+  if v_audit.user_agent <> 'CivicEye/1.0 (iPhone)' then
     raise exception 'ASSERT FAILED: user_agent klopt niet: %', v_audit.user_agent;
   end if;
   raise notice 'ok — IP wordt als sha256 bewaard, nooit als ruw adres';
@@ -376,8 +575,8 @@ do $$
 declare v_voor text; v_na text;
 begin
   v_voor := public.hash_ip('81.240.10.7');
-  update public.app_config
-  set value = to_jsonb((now() - interval '60 days')::text)
+  update public.app_secrets
+  set value = (now() - interval '60 days')::text
   where key = 'ip_hash_salt_rotated_at';
 
   if not (public.purge_old_data() ->> 'salt_rotated')::boolean then
@@ -423,6 +622,49 @@ begin
     reset role;
     raise notice 'ok — anon kan de audittabel niet lezen';
   end;
+end;
+$$;
+
+-- De servicefuncties zijn niet gegrant aan clients. Postgres geeft functies
+-- standaard EXECUTE aan PUBLIC; deze test bewaakt dat de revoke in 0003 dat
+-- echt heeft weggehaald — vergeet je hem, dan faalt precies deze test.
+do $$
+declare v_fn text;
+begin
+  set local role anon;
+  foreach v_fn in array array[
+    $q$ select public.complete_photo_scan('00000000-0000-0000-0000-000000000000'::uuid, 'safe') $q$,
+    $q$ select public.purge_old_data() $q$,
+    $q$ select public.moderate_report('00000000-0000-0000-0000-000000000000'::uuid, 'remove') $q$
+  ] loop
+    begin
+      execute v_fn;
+      reset role;
+      raise exception 'ASSERT FAILED: anon kon uitvoeren: %', v_fn;
+    exception when insufficient_privilege then
+      null; -- precies de bedoeling
+    end;
+  end loop;
+  reset role;
+  raise notice 'ok — anon kan de service- en moderatiefuncties niet uitvoeren';
+end;
+$$;
+
+-- De IP-hash-salt is voor niemand leesbaar; app_config bevat hem niet.
+do $$
+begin
+  set local role anon;
+  begin
+    perform count(*) from public.app_secrets;
+    reset role;
+    raise exception 'ASSERT FAILED: anon mag app_secrets niet lezen';
+  exception when insufficient_privilege then
+    reset role;
+  end;
+  if exists (select 1 from public.app_config where key like 'ip_hash_salt%') then
+    raise exception 'ASSERT FAILED: de salt hoort in app_secrets, niet in het leesbare app_config';
+  end if;
+  raise notice 'ok — de IP-hash-salt is onbereikbaar voor clients';
 end;
 $$;
 

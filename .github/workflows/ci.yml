@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
 
 concurrency:
@@ -42,24 +42,10 @@ jobs:
       - name: Migraties op een lege databank + smoketests
         run: DB=civiceye_ci ./db/test/run_tests.sh
 
-      # Een migratie moet ook draaien op een databank die al data heeft. Dit
-      # vangt migraties die stilzwijgend van een lege tabel uitgaan.
-      - name: Migraties op een gevulde databank
-        run: |
-          set -euo pipefail
-          dropdb --if-exists civiceye_filled && createdb civiceye_filled
-          psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f db/test/00_supabase_stubs.sql
-          for f in db/migrations/*.sql; do
-            psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f "$f"
-          done
-          psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f db/seed/dev_seed.sql
-          # opnieuw toepassen: migraties moeten idempotent genoeg zijn om
-          # zonder fout over bestaande data te lopen
-          for f in db/migrations/000[2-5]*.sql; do
-            psql -q -d civiceye_filled -f "$f" > /dev/null 2>&1 || true
-          done
-          psql -v ON_ERROR_STOP=1 -q -d civiceye_filled \
-            -c "select count(*) as meldingen_na_migratie from public.reports"
+      # run_tests.sh dekt ook de seed, de opschaalstap (db/scale/0100) en de
+      # cache-pariteit; aparte stappen daarvoor zouden dubbel werk zijn. Een
+      # eerdere "pas migraties nogmaals toe"-stap is geschrapt: hij slikte
+      # elke fout met || true en kon dus niet falen.
 
       - uses: actions/setup-node@v4
         with:
@@ -69,12 +55,6 @@ jobs:
       # dezelfde regel groeien stil uit elkaar, dus vergelijken we ze.
       - name: Punten in SQL en TypeScript vergelijken
         run: DB=civiceye_ci ./scripts/check-points-parity.sh
-
-      - name: Opschaalstap valideren (clustercache == live query)
-        run: |
-          set -euo pipefail
-          psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f db/scale/0100_cluster_cache.sql
-          psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f db/test/30_cluster_cache.sql
 
   api-contract:
     name: OpenAPI-contract
@@ -112,9 +92,10 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+      # Faalt echt op high/critical; moderate en lager is ruis in transitieve
+      # build-tooling en blokkeert niet.
       - name: Kwetsbaarheden
         run: pnpm audit --audit-level=high
-        continue-on-error: true
 
       # De service_role-key geeft volledige toegang en mag nooit in een
       # client-bundle staan. Alles met EXPO_PUBLIC_ zit in de app en is publiek.

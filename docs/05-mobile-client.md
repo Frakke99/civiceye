@@ -69,7 +69,8 @@ Ontwerpregels die de 15 seconden halen:
 
 ### Wanneer we níet meteen posten
 
-Als `nearby_reports` binnen 20 m al een melding van hetzelfde type vindt, toont
+Als `nearby_reports` dichtbij al een melding van hetzelfde type vindt (straal
+nog te kiezen in sprint 2; de server-dedupe zelf is 15 m), toont
 de app "Hier is al iets gemeld" met twee keuzes: *bevestigen* (`confirm_report`)
 of *toch apart melden*. Dat houdt de kaart schoon zonder de gebruiker te blokkeren.
 
@@ -128,7 +129,8 @@ Store-privacylabels eenvoudig verdedigbaar.
 | Sessie | expo-secure-store | anonieme identiteit moet blijven, anders verlies je je meldingen |
 | Instellingen | AsyncStorage | onbelangrijk bij verlies |
 
-Bbox-keys worden op een raster afgerond (op ~1/8 van de vensterbreedte) zodat
+Bbox-keys worden afgerond op het clusterraster van de server (per zoomniveau,
+zie `packages/shared/src/bbox.ts`) zodat
 kleine pans dezelfde cache-entry raken in plaats van elke pixel een nieuwe query.
 
 ## Toegankelijkheid

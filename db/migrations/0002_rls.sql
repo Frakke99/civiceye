@@ -38,6 +38,7 @@ alter table public.moderation_events    enable row level security;
 alter table public.service_areas        enable row level security;
 alter table public.municipalities       enable row level security;
 alter table public.app_config           enable row level security;
+alter table public.app_secrets           enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- reports: publiek leesbaar wat gepubliceerd is; je eigen meldingen altijd
@@ -133,7 +134,8 @@ create policy service_areas_read on public.service_areas
   for select to anon, authenticated using (is_active);
 
 -- ---------------------------------------------------------------------------
--- Nooit leesbaar voor clients: audit en moderatielog.
+-- Nooit leesbaar voor clients: audit, moderatielog en geheimen.
 -- Geen enkele policy = geen enkele rij, ook niet met RLS aan.
 -- ---------------------------------------------------------------------------
--- (report_audit, moderation_events, municipalities: alleen service_role)
+-- (report_audit, moderation_events, app_secrets, municipalities: alleen
+-- service_role)

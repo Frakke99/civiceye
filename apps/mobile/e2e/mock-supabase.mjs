@@ -31,7 +31,15 @@ export function start(port) {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
-      const b = body ? JSON.parse(body) : {};
+      let b;
+      try {
+        b = body ? JSON.parse(body) : {};
+      } catch {
+        // Eén misvormde body mag het mock-backend (en dus de demo) niet
+        // platleggen met een uncaught exception.
+        res.writeHead(400, cors);
+        return res.end(JSON.stringify({ message: 'ongeldige JSON' }));
+      }
       calls.push({ url: req.url, body: b });
 
       if (req.url.startsWith('/auth/v1/signup') || req.url.startsWith('/auth/v1/token')) {

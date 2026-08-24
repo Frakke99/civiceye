@@ -44,7 +44,8 @@ clusteren stuurt maximaal 800 rijen, ongeacht het volume.
 
 ## Gemeten performance
 
-`db/test/20_perf.sql` genereert 50 000 en 500 000 meldingen, geclusterd rond
+`db/test/20_perf.sql` genereert 50 000 meldingen (of een ander aantal via
+`-v n=500000`), geclusterd rond
 12 Vlaamse steden (clustering is precies wat de aggregatie zwaar maakt), en
 meet met `EXPLAIN (ANALYZE)`. Postgres 16 + PostGIS 3.4.
 
@@ -119,5 +120,5 @@ allemaal `stable` en kunnen zonder aanpassing naar een replica.
 | `map_reports` p95 | 300 ms | [SLO](09-observability-en-slo.md) |
 | Antwoordgrootte kaartquery | < 100 kB | cap van 600 punten / 800 clusters |
 | Tijd tot eerste kaartweergave | 1,5 s op 4G | client-event `map_first_paint` |
-| App-downloadgrootte | < 40 MB | CI faalt boven de limiet |
+| Web-bundelgrootte | < 40 MB | CI faalt boven de limiet |
 | Tiles per gebruiker per maand | < 1 500 | MapTiler-dashboard; bepaalt de kosten ([12](12-kosten.md)) |

@@ -32,6 +32,16 @@ export function serveStatic(dist, port) {
     const pad = decodeURIComponent((req.url ?? '/').split('?')[0]);
     let bestand = path.join(dist, pad);
 
+    // Containment: serve-demo.mjs adverteert deze server op het LAN, dus een
+    // pad met ../ mag nooit buiten de dist-map komen. De dist-map zelf ('/')
+    // is wél toegestaan — die valt hieronder terug op index.html.
+    const wortel = path.resolve(dist);
+    const doel = path.resolve(bestand);
+    if (doel !== wortel && !doel.startsWith(wortel + path.sep)) {
+      res.writeHead(403);
+      return res.end('forbidden');
+    }
+
     if (pad === '/' || !fs.existsSync(bestand) || fs.statSync(bestand).isDirectory()) {
       const metHtml = path.join(dist, pad + '.html');
       bestand = fs.existsSync(metHtml) ? metHtml : path.join(dist, 'index.html');

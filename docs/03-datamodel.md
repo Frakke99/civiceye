@@ -18,6 +18,7 @@ erDiagram
     reports    }o--o| municipalities : "municipality_code"
     service_areas
     app_config
+    app_secrets
     moderation_events
 ```
 
@@ -66,8 +67,7 @@ Deze staan als `CHECK` in de database, niet enkel in de client:
 | Index | Query die hem gebruikt |
 | ----- | ---------------------- |
 | `reports_geom_gix` (GiST, **partieel** op zichtbare statussen) | de kaartquery — dit is dé hot path |
-| `reports_created_at_idx` | retentiejob, "recentste meldingen" |
-| `reports_status_created_idx` | moderatiewachtrij |
+| `reports_status_created_idx` | retentiejob, moderatiewachtrij, lijsten (filteren altijd op status) |
 | `reports_created_by_idx` | rate limit (telt eigen meldingen in het laatste uur) |
 | `reports_municipality_idx` (partieel) | export per gemeente |
 | `report_photos_pending_idx` (partieel) | vastgelopen scans opsporen |
@@ -81,7 +81,8 @@ Twee lagen, en ze doen bewust iets anders:
 
 1. **RLS op de tabellen** bepaalt wat een client mag *lezen*: gepubliceerde
    meldingen, zijn eigen meldingen, en gescande foto's. `report_audit` en
-   `moderation_events` hebben géén enkele policy — dus geen enkele rij, zelfs
+   `moderation_events` en `app_secrets` hebben géén enkele policy — dus geen
+   enkele rij, zelfs
    niet als iemand met een geldig token rechtstreeks de tabel aanspreekt.
 2. **Security-definer-functies** zijn de enige manier om te *schrijven*.
    `INSERT`, `UPDATE` en `DELETE` zijn ingetrokken voor `anon` en

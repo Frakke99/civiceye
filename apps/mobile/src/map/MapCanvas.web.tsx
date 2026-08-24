@@ -41,6 +41,7 @@ if (typeof document !== 'undefined') {
 export function MapCanvas({
   markers,
   initialCenter,
+  focus,
   onViewportChange,
   onSelectReport,
   onSelectCluster,
@@ -101,7 +102,9 @@ export function MapCanvas({
       });
     };
 
+    let geladen = false;
     m.on('load', () => {
+      geladen = true;
       m.addSource(SOURCE, { type: 'geojson', data: toMarkerCollection([]) });
       m.addLayer({
         id: 'meldingen-bel',
@@ -135,10 +138,12 @@ export function MapCanvas({
     // kapotte stijl melden we, want dan zie je helemaal niets.
     m.on('error', (e) => {
       // Alles loggen: een stille kaartfout kostte ons eerder een lege kaart.
-      // Enkel een kapotte stijl leidt tot de lijstweergave; een ontbrekende
-      // tegel of font mag de app niet stilleggen.
+      // Fataal is alleen een stijlfout vóór het load-event: dan komt er nooit
+      // een kaart. Ná load is een fout hooguit een tegel of een query — ook
+      // als de tekst toevallig "style" bevat (zoals bij queryRenderedFeatures
+      // op een laag die nog niet bestaat).
       console.warn('kaartfout:', e.error?.message);
-      if (e.error?.message?.includes('style')) setFout(e.error.message);
+      if (!geladen && e.error?.message?.includes('style')) setFout(e.error.message);
     });
 
     m.on('mouseenter', 'meldingen-bel', () => {
@@ -163,12 +168,34 @@ export function MapCanvas({
     });
 
     return () => {
-      m.remove();
-      map.current = null;
+      // map.current kan al genuld zijn door de fout-opruiming hierboven;
+      // remove() twee keer aanroepen is niet toegestaan.
+      if (map.current === m) {
+        m.remove();
+        map.current = null;
+      }
     };
     // Alleen bij het opzetten; de kaart mag niet herbouwen bij nieuwe markers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Clustertik: de camera beweegt, de kaart zelf blijft staan (zie types.ts).
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !focus) return;
+    m.easeTo({ center: [focus.lng, focus.lat], zoom: focus.zoom });
+  }, [focus]);
+
+  // Bij een kapotte stijl tonen we de lijstweergave, maar dit component blijft
+  // gemount — de effect-cleanup draait dan dus niet. Zonder deze opruiming
+  // blijft de kaart (WebGL-context, listeners) achter een weggegooide
+  // container doorleven.
+  useEffect(() => {
+    if (fout && map.current) {
+      map.current.remove();
+      map.current = null;
+    }
+  }, [fout]);
 
   useEffect(() => {
     const m = map.current;

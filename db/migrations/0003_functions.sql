@@ -49,7 +49,7 @@ begin
   if p_ip is null or btrim(p_ip) = '' then
     return null;
   end if;
-  select value #>> '{}' into v_salt from public.app_config where key = 'ip_hash_salt';
+  select value into v_salt from public.app_secrets where key = 'ip_hash_salt';
   if v_salt is null then
     return null;
   end if;
@@ -104,17 +104,123 @@ as $$
   end;
 $$;
 
+-- Ware bron voor het clusterraster: 4x4 cellen per kaarttegel (zie
+-- docs/06-kaart-en-performance.md). Zowel map_reports als de cluster-cache
+-- (db/scale/0100) rekenen hiermee; zouden ze uiteenlopen, dan kloppen de
+-- celgrenzen van de cache niet meer met de live query.
+create or replace function public.cluster_cell_size(p_zoom integer)
+returns double precision
+language sql
+immutable
+as $$
+  select 360.0 / (2 ^ (p_zoom + 2));
+$$;
+
+-- Is de aanroep gedaan met de service_role-key (Edge Function, beheerconsole)?
+-- PostgREST zet de geverifieerde JWT-claims in een GUC; clients kunnen die
+-- niet vervalsen. Beide GUC-vormen, want oudere PostgREST zet ze per claim.
+create or replace function public.is_service_role()
+returns boolean
+language plpgsql
+stable
+as $$
+declare
+  v_role text;
+begin
+  begin
+    v_role := coalesce(
+      nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role',
+      nullif(current_setting('request.jwt.claim.role', true), ''));
+  exception when others then
+    v_role := null;
+  end;
+  -- coalesce: zonder claims moet dit hard false zijn, geen NULL — een NULL
+  -- zou in `if not (...)` stil als "toegestaan" doortellen.
+  return coalesce(v_role = 'service_role', false);
+end;
+$$;
+
+-- De twee checks die élke schrijffunctie nodig heeft: aangemeld en niet
+-- geblokkeerd. Geeft het profiel terug zodat de aanroeper trust_level e.d.
+-- niet opnieuw hoeft op te halen.
+create or replace function public.active_profile()
+returns public.profiles
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_uid     uuid := auth.uid();
+  v_profile public.profiles;
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  select * into v_profile from public.profiles where id = v_uid;
+  if not found then
+    raise exception 'not_authenticated';
+  end if;
+
+  if v_profile.trust_level = -1
+     or (v_profile.blocked_until is not null and v_profile.blocked_until > now()) then
+    raise exception 'account_blocked';
+  end if;
+
+  return v_profile;
+end;
+$$;
+
+-- Valideert coördinaten en bouwt er een punt van — het formaat van elke
+-- gebruikerslocatie in het systeem. NULL of buiten bereik is altijd een
+-- clientfout, nooit iets om stil te negeren: bij mark_cleaned zou een
+-- NULL-locatie anders de afstandscheck (fraudebeperking) omzeilen.
+create or replace function public.to_point(p_lat double precision, p_lng double precision)
+returns geography
+language plpgsql
+immutable
+as $$
+begin
+  if p_lat is null or p_lng is null
+     or p_lat not between -90 and 90 or p_lng not between -180 and 180 then
+    raise exception 'invalid_coordinates';
+  end if;
+  return st_setsrid(st_makepoint(p_lng, p_lat), 4326)::geography;
+end;
+$$;
+
+-- Fotopaden komen van de client; alles wat geen gewoon relatief pad is,
+-- weigeren we. Een lege string telt als "geen foto".
+create or replace function public.clean_photo_path(p_path text)
+returns text
+language plpgsql
+immutable
+as $$
+declare
+  v_path text := nullif(btrim(coalesce(p_path, '')), '');
+begin
+  if v_path is not null
+     and (char_length(v_path) > 200
+          or v_path like '%..%'
+          or v_path !~ '^[A-Za-z0-9][A-Za-z0-9/._-]*$') then
+    raise exception 'invalid_photo_path';
+  end if;
+  return v_path;
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- create_report — de enige manier om een melding aan te maken
 -- ---------------------------------------------------------------------------
 -- Dwingt af, in deze volgorde:
---   1. authenticatie          → 'not_authenticated'
---   2. account niet geblokkeerd → 'account_blocked'
---   3. idempotentie op client_ref (retry van de outbox = zelfde melding)
---   4. geldige invoer          → 'invalid_coordinates' | 'invalid_kind' | 'size_required'
---   5. binnen servicegebied    → 'outside_service_area'
---   6. rate limits             → 'rate_limited'
---   7. eigen duplicaat dichtbij → geeft de bestaande melding terug
+--   1. aangemeld en niet geblokkeerd → 'not_authenticated' | 'account_blocked'
+--   2. idempotentie op client_ref (retry van de outbox = zelfde melding)
+--   3. geldige invoer → 'invalid_coordinates' | 'invalid_kind' | 'size_required'
+--                       | 'note_too_long' | 'invalid_photo_path'
+--   4. binnen servicegebied → 'outside_service_area'
+--   5. rate limits → 'rate_limited'
+--   6. eigen duplicaat dichtbij → geeft de bestaande melding terug
 --
 create or replace function public.create_report(
   p_client_ref  uuid,
@@ -134,12 +240,14 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid        uuid := auth.uid();
-  v_profile    public.profiles;
+  v_profile    public.profiles := public.active_profile();
+  v_uid        uuid := v_profile.id;
   v_point      geography(Point, 4326);
   v_existing   public.reports;
   v_report_id  uuid;
   v_photo_id   uuid;
+  v_photo_path text;
+  v_note       text;
   v_limit_hour integer := public.cfg_int('rate_limit_per_hour', 15);
   v_limit_day  integer := public.cfg_int('rate_limit_per_day', 40);
   v_dedupe_m   integer := public.cfg_int('dedupe_radius_m', 15);
@@ -148,23 +256,7 @@ declare
   v_nearby     integer;
   v_meta       jsonb;
 begin
-  -- 1. authenticatie
-  if v_uid is null then
-    raise exception 'not_authenticated';
-  end if;
-
-  select * into v_profile from public.profiles where id = v_uid;
-  if not found then
-    raise exception 'not_authenticated';
-  end if;
-
-  -- 2. blokkade
-  if v_profile.trust_level = -1
-     or (v_profile.blocked_until is not null and v_profile.blocked_until > now()) then
-    raise exception 'account_blocked';
-  end if;
-
-  -- 3. idempotentie: de outbox mag onbeperkt opnieuw proberen
+  -- 2. idempotentie: de outbox mag onbeperkt opnieuw proberen
   select * into v_existing
   from public.reports
   where created_by = v_uid and client_ref = p_client_ref;
@@ -178,13 +270,11 @@ begin
     );
   end if;
 
-  -- 4. invoer
-  if p_lat is null or p_lng is null
-     or p_lat not between -90 and 90 or p_lng not between -180 and 180 then
-    raise exception 'invalid_coordinates';
-  end if;
+  -- 3. invoer
+  v_point := public.to_point(p_lat, p_lng);
 
-  if not (public.cfg('enabled_kinds') ? p_kind::text) then
+  -- Ontbreekt de config-key, dan geldt de veilige default: alleen afval.
+  if not (coalesce(public.cfg('enabled_kinds'), '["litter"]'::jsonb) ? p_kind::text) then
     raise exception 'invalid_kind';
   end if;
 
@@ -192,9 +282,14 @@ begin
     raise exception 'size_required';
   end if;
 
-  v_point := st_setsrid(st_makepoint(p_lng, p_lat), 4326)::geography;
+  v_note := nullif(btrim(coalesce(p_note, '')), '');
+  if char_length(v_note) > 280 then
+    raise exception 'note_too_long';
+  end if;
 
-  -- 5. servicegebied
+  v_photo_path := public.clean_photo_path(p_photo_path);
+
+  -- 4. servicegebied
   if coalesce((public.cfg('enforce_service_area'))::boolean, true) then
     if not exists (
       select 1 from public.service_areas
@@ -204,7 +299,7 @@ begin
     end if;
   end if;
 
-  -- 6. rate limits (vertrouwde gebruikers krijgen het dubbele)
+  -- 5. rate limits (vertrouwde gebruikers krijgen het dubbele)
   if v_profile.trust_level >= 2 then
     v_limit_hour := v_limit_hour * 2;
     v_limit_day  := v_limit_day * 2;
@@ -224,7 +319,7 @@ begin
     raise exception 'rate_limited' using detail = 'day';
   end if;
 
-  -- 7. eigen duplicaat: geen fout, maar de bestaande melding teruggeven
+  -- 6. eigen duplicaat: geen fout, maar de bestaande melding teruggeven
   select * into v_existing
   from public.reports
   where created_by = v_uid
@@ -250,22 +345,47 @@ begin
   where st_intersects(area, v_point)
   limit 1;
 
-  insert into public.reports (
-    client_ref, kind, size, geom, accuracy_m, note,
-    created_by, created_client, municipality_code, photo_count
-  )
-  values (
-    p_client_ref, p_kind, p_size, v_point, p_accuracy_m,
-    nullif(btrim(coalesce(p_note, '')), ''),
-    v_uid, p_client, v_muni,
-    case when p_photo_path is null then 0 else 1 end
-  )
-  returning id into v_report_id;
+  begin
+    insert into public.reports (
+      client_ref, kind, size, geom, accuracy_m, note,
+      created_by, created_client, municipality_code, photo_count
+    )
+    values (
+      p_client_ref, p_kind, p_size, v_point,
+      -- Onzinnige metadata (negatieve accuracy) blokkeert nooit een melding.
+      case when p_accuracy_m < 0 then null else p_accuracy_m end,
+      v_note, v_uid, p_client, v_muni,
+      case when v_photo_path is null then 0 else 1 end
+    )
+    returning id into v_report_id;
+  exception when unique_violation then
+    -- Twee gelijktijdige retries met dezelfde client_ref: de idempotentie-
+    -- check in stap 2 zagen ze allebei leeg, de tweede insert botst hier.
+    -- Zelfde antwoord als stap 2, geen fout richting de outbox.
+    select * into v_existing
+    from public.reports
+    where created_by = v_uid and client_ref = p_client_ref;
+    if not found then
+      raise;
+    end if;
+    return jsonb_build_object(
+      'report_id',  v_existing.id,
+      'status',     v_existing.status,
+      'created_at', v_existing.created_at,
+      'idempotent', true
+    );
+  end;
 
-  if p_photo_path is not null then
-    insert into public.report_photos (report_id, storage_path, bucket)
-    values (v_report_id, p_photo_path, 'photo-inbox')
-    returning id into v_photo_id;
+  if v_photo_path is not null then
+    begin
+      insert into public.report_photos (report_id, storage_path, bucket)
+      values (v_report_id, v_photo_path, 'photo-inbox')
+      returning id into v_photo_id;
+    exception when unique_violation then
+      -- storage_path is uniek over alle meldingen; een botsing betekent dat
+      -- de client een pad hergebruikt dat al aan een andere melding hangt.
+      raise exception 'invalid_photo_path';
+    end;
   end if;
 
   v_meta := public.request_meta();
@@ -274,8 +394,7 @@ begin
   values (v_report_id,
           public.hash_ip(v_meta ->> 'ip'),
           v_meta ->> 'user_agent',
-          p_app_version)
-  on conflict (report_id) do nothing;
+          p_app_version);
 
   update public.profiles
   set reports_count = reports_count + 1
@@ -343,9 +462,12 @@ begin
     raise exception 'invalid_bbox';
   end if;
 
+  -- Clampen in plaats van weigeren: het clientraster (quantizeBbox) mag tot
+  -- op de rand van de wereld afronden; buiten bereik geeft PostGIS anders een
+  -- rauwe fout in plaats van een stabiele code.
   v_bbox := st_makeenvelope(
-    least(min_lng, max_lng), least(min_lat, max_lat),
-    greatest(min_lng, max_lng), greatest(min_lat, max_lat),
+    greatest(least(min_lng, max_lng), -180.0), greatest(least(min_lat, max_lat), -90.0),
+    least(greatest(min_lng, max_lng), 180.0), least(greatest(min_lat, max_lat), 90.0),
     4326
   );
 
@@ -380,7 +502,7 @@ begin
   else
     -- 4x4 cellen per tegel ≈ 48 markers in een telefoonviewport, op elke zoom.
     -- Zie docs/06-kaart-en-performance.md voor de doorrekening.
-    v_cell := 360.0 / (2 ^ (v_zoom + 2));
+    v_cell := public.cluster_cell_size(v_zoom);
 
     return query
       select
@@ -511,22 +633,20 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid       uuid := auth.uid();
+  v_uid       uuid := (public.active_profile()).id;
   v_threshold integer := public.cfg_int('auto_quarantine_flags', 3);
   v_count     integer;
   v_status    public.report_status;
 begin
-  if v_uid is null then
-    raise exception 'not_authenticated';
-  end if;
-
   if not exists (select 1 from public.reports where id = p_report_id) then
     raise exception 'report_not_found';
   end if;
 
+  -- detail is metadata bij een misbruikmelding; afkappen is daar onschuldig,
+  -- en beter dan de flag weigeren.
   insert into public.report_flags (report_id, flagged_by, reason, detail)
   values (p_report_id, v_uid, p_reason,
-          nullif(btrim(coalesce(p_detail, '')), ''))
+          nullif(left(btrim(coalesce(p_detail, '')), 280), ''))
   on conflict (report_id, flagged_by) do update
     set reason = excluded.reason, detail = excluded.detail;
 
@@ -567,11 +687,14 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid   uuid := auth.uid();
+  v_uid   uuid := (public.active_profile()).id;
   v_count integer;
 begin
-  if v_uid is null then
-    raise exception 'not_authenticated';
+  -- Eerst het bestaan checken: een insert op een onbestaand id zou een rauwe
+  -- FK-fout geven in plaats van de stabiele code.
+  if not exists (select 1 from public.reports
+                 where id = p_report_id and status = 'published') then
+    raise exception 'report_not_found';
   end if;
 
   insert into public.report_confirmations (report_id, confirmed_by)
@@ -583,11 +706,7 @@ begin
 
   update public.reports
   set confirm_count = v_count
-  where id = p_report_id and status = 'published';
-
-  if not found then
-    raise exception 'report_not_found';
-  end if;
+  where id = p_report_id;
 
   return jsonb_build_object('report_id', p_report_id, 'confirm_count', v_count);
 end;
@@ -611,20 +730,24 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid      uuid := auth.uid();
-  v_report   public.reports;
-  v_point    geography(Point, 4326);
-  v_distance double precision;
-  v_points   smallint;
-  v_photo_id uuid;
+  v_uid        uuid;
+  v_report     public.reports;
+  v_point      geography(Point, 4326);
+  v_distance   double precision;
+  v_points     smallint;
+  v_photo_id   uuid;
+  v_photo_path text;
 begin
   if not coalesce((public.cfg('cleanups_enabled'))::boolean, false) then
     raise exception 'feature_disabled';
   end if;
 
-  if v_uid is null then
-    raise exception 'not_authenticated';
-  end if;
+  v_uid := (public.active_profile()).id;
+
+  -- to_point valideert de coördinaten: een NULL-locatie zou anders stil de
+  -- afstandscheck omzeilen — precies de fraude die deze check moet stoppen.
+  v_point := public.to_point(p_lat, p_lng);
+  v_photo_path := public.clean_photo_path(p_photo_path);
 
   select * into v_report from public.reports
   where id = p_report_id and status = 'published'
@@ -634,7 +757,6 @@ begin
     raise exception 'report_not_found';
   end if;
 
-  v_point := st_setsrid(st_makepoint(p_lng, p_lat), 4326)::geography;
   v_distance := st_distance(v_report.geom, v_point);
 
   if v_distance > 75 then
@@ -648,10 +770,14 @@ begin
 
   v_points := public.points_for(v_report.kind, v_report.size);
 
-  if p_photo_path is not null then
-    insert into public.report_photos (report_id, storage_path, bucket)
-    values (p_report_id, p_photo_path, 'photo-inbox')
-    returning id into v_photo_id;
+  if v_photo_path is not null then
+    begin
+      insert into public.report_photos (report_id, storage_path, bucket)
+      values (p_report_id, v_photo_path, 'photo-inbox')
+      returning id into v_photo_id;
+    exception when unique_violation then
+      raise exception 'invalid_photo_path';
+    end;
   end if;
 
   insert into public.cleanups (report_id, user_id, points_awarded, distance_m, photo_id)
@@ -745,7 +871,9 @@ declare
   v_new       public.report_status;
   v_author    uuid;
 begin
-  if v_uid is not null and not public.is_moderator() then
+  -- Expliciet: service-key óf een profiel met trust_level 3. Nooit "geen uid
+  -- = vertrouwd" — een anon-key heeft ook geen uid.
+  if not (public.is_service_role() or public.is_moderator()) then
     raise exception 'forbidden';
   end if;
 
@@ -760,8 +888,12 @@ begin
     raise exception 'invalid_action';
   end if;
 
+  -- cleaned_at moet mee terug naar null (constraint cleaned_has_timestamp):
+  -- geen van de drie moderatie-acties laat een melding 'cleaned'. De
+  -- cleanup-rij en de punten blijven staan — dat is historiek, geen status.
   update public.reports
-  set status = v_new, moderated_at = now(), moderated_by = v_uid
+  set status = v_new, moderated_at = now(), moderated_by = v_uid,
+      cleaned_at = null, cleaned_by = null
   where id = p_report_id
   returning created_by into v_author;
 
@@ -787,26 +919,27 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid uuid := auth.uid();
+  v_uid  uuid := auth.uid();
+  v_days integer := greatest(coalesce(p_days, 30), 1);
 begin
-  if v_uid is not null and not public.is_moderator() then
+  if not (public.is_service_role() or public.is_moderator()) then
     raise exception 'forbidden';
   end if;
 
   update public.profiles
-  set blocked_until  = now() + make_interval(days => greatest(coalesce(p_days, 30), 1)),
+  set blocked_until  = now() + make_interval(days => v_days),
       blocked_reason = p_reason,
-      trust_level    = case when p_days >= 3650 then -1 else trust_level end
+      trust_level    = case when v_days >= 3650 then -1 else trust_level end
   where id = p_user_id;
 
   if not found then
     raise exception 'user_not_found';
   end if;
 
-  insert into public.moderation_events (actor_id, action, reason)
-  values (v_uid, 'block_user', coalesce(p_reason, '') || ' (' || p_user_id::text || ')');
+  insert into public.moderation_events (target_user_id, actor_id, action, reason)
+  values (p_user_id, v_uid, 'block_user', p_reason);
 
-  return jsonb_build_object('user_id', p_user_id, 'blocked_days', p_days);
+  return jsonb_build_object('user_id', p_user_id, 'blocked_days', v_days);
 end;
 $$;
 
@@ -855,13 +988,13 @@ begin
   -- Salt roteren zodra hij ouder is dan de auditbewaartermijn: op dat moment
   -- zijn alle rijen die met de oude salt gehasht zijn toch al gewist.
   if coalesce(
-       (select (value #>> '{}')::timestamptz from public.app_config
+       (select value::timestamptz from public.app_secrets
         where key = 'ip_hash_salt_rotated_at'),
        'epoch'::timestamptz
      ) < now() - make_interval(days => v_audit) then
-    insert into public.app_config (key, value) values
-      ('ip_hash_salt', to_jsonb(gen_random_uuid()::text)),
-      ('ip_hash_salt_rotated_at', to_jsonb(now()))
+    insert into public.app_secrets (key, value) values
+      ('ip_hash_salt', gen_random_uuid()::text),
+      ('ip_hash_salt_rotated_at', now()::text)
     on conflict (key) do update set value = excluded.value, updated_at = now();
     v_rotated := true;
   end if;
@@ -876,14 +1009,42 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Uitvoerrechten: clients mogen enkel deze functies
 -- ---------------------------------------------------------------------------
-revoke execute on all functions in schema public from anon, authenticated;
+-- Postgres geeft nieuwe functies standaard EXECUTE aan de pseudo-rol PUBLIC,
+-- en anon/authenticated erven dat. Een revoke op enkel anon/authenticated is
+-- dus een no-op. Daarom: PUBLIC-rechten weg van onze eigen functies (die van
+-- extensies zoals PostGIS blijven staan), en ook voor toekomstige functies.
+do $$
+declare
+  f record;
+begin
+  for f in
+    select p.oid::regprocedure as sig
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and not exists (
+        select 1 from pg_depend d
+        where d.objid = p.oid and d.deptype = 'e'
+      )
+  loop
+    execute format('revoke execute on function %s from public, anon, authenticated', f.sig);
+  end loop;
+end;
+$$;
+
+alter default privileges in schema public revoke execute on functions from public;
+
+-- is_moderator staat in een RLS-policy (0002) en wordt daardoor met de
+-- rechten van de lézende rol geëvalueerd; die rol heeft er dus EXECUTE op
+-- nodig, ook al is de functie security definer.
+grant execute on function public.is_moderator() to anon, authenticated, service_role;
 
 grant execute on function public.map_reports(double precision, double precision,
   double precision, double precision, integer, public.report_kind[], boolean)
-  to anon, authenticated;
-grant execute on function public.report_details(uuid) to anon, authenticated;
+  to anon, authenticated, service_role;
+grant execute on function public.report_details(uuid) to anon, authenticated, service_role;
 grant execute on function public.nearby_reports(double precision, double precision, integer)
-  to anon, authenticated;
+  to anon, authenticated, service_role;
 
 grant execute on function public.create_report(uuid, double precision, double precision,
   public.report_kind, public.litter_size, text, numeric, text,
@@ -892,7 +1053,16 @@ grant execute on function public.flag_report(uuid, public.flag_reason, text) to 
 grant execute on function public.confirm_report(uuid) to authenticated;
 grant execute on function public.mark_cleaned(uuid, double precision, double precision, text)
   to authenticated;
-grant execute on function public.moderate_report(uuid, text, text) to authenticated;
-grant execute on function public.block_user(uuid, integer, text) to authenticated;
 
--- complete_photo_scan en purge_old_data: enkel service_role (default), niet gegrant.
+-- Moderatie: gegrant aan authenticated (de functie eist zelf trust_level 3)
+-- en aan service_role (de beheerconsole).
+grant execute on function public.moderate_report(uuid, text, text)
+  to authenticated, service_role;
+grant execute on function public.block_user(uuid, integer, text)
+  to authenticated, service_role;
+
+-- Enkel voor de server: de scan-webhook en de retentiejob. Clients krijgen
+-- hier géén grant — dat wordt in db/test/10_tests.sql ook echt gecontroleerd.
+grant execute on function public.complete_photo_scan(uuid, public.photo_scan_status,
+  text, jsonb, integer, integer, integer, text) to service_role;
+grant execute on function public.purge_old_data() to service_role;

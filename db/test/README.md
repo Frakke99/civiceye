@@ -28,7 +28,7 @@ rood maakt.
 | Bestand | Rol |
 | ------- | --- |
 | `00_supabase_stubs.sql` | stubt wat Supabase levert: het `auth`-schema, `auth.users`, `auth.uid()` en de rollen `anon`/`authenticated`/`service_role`. **Nooit** op Supabase draaien |
-| `10_tests.sql` | 48 assertions: posten, idempotentie, validatie, deduplicatie, rate limits, kaartquery, moderatie, fotopijplijn, punten, retentie, IP-hashing en RLS (lezen én schrijven) |
+| `10_tests.sql` | 69 assertions: posten, idempotentie, validatie, deduplicatie, rate limits, kaartquery, bevestigen, flags, moderatie (incl. rolgrenzen), fotopijplijn, punten, retentie, IP-hashing en RLS (lezen én schrijven) |
 | `20_perf.sql` | genereert 50 000 meldingen en meet de kaartquery met `EXPLAIN (ANALYZE)`. Draai dit na elke wijziging aan `reports` of `map_reports` |
 | `30_cluster_cache.sql` | bewijst dat de opschaalstap (`db/scale/0100`) exact dezelfde aantallen geeft als de live query |
 | `run_tests.sh` | volledige reeks; ook gebruikt door CI |
@@ -57,10 +57,14 @@ tijdstip. Een test die op leeftijd berust (retentie, cooldowns) moet de rij
 Op een echt project heb je de stubs niet nodig:
 
 ```bash
-supabase link --project-ref <ref>
-supabase db push
+for f in db/migrations/*.sql; do
+  psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "$f"
+done
 psql "$SUPABASE_DB_URL" -f db/seed/dev_seed.sql   # alleen dev/staging
 ```
+
+(`supabase db push` werkt pas nadat je de migraties in het CLI-formaat hebt
+gezet — zie de release-workflow of de QUICKSTART.)
 
 `0005_storage.sql` doet lokaal niets (er is geen `storage`-schema) en maakt op
 Supabase de twee buckets aan.

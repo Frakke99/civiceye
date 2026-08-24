@@ -20,10 +20,11 @@ values ('enforce_service_area', 'true'::jsonb)
 on conflict (key) do nothing;
 
 -- Salt voor de IP-hash. Wordt maandelijks geroteerd door purge_old_data().
--- Staat bewust in de databank en niet in de code: hij mag nooit in git komen.
-insert into public.app_config (key, value)
-values ('ip_hash_salt', to_jsonb(gen_random_uuid()::text)),
-       ('ip_hash_salt_rotated_at', to_jsonb(now()))
+-- Staat bewust in de databank en niet in de code (mag nooit in git komen), en
+-- in app_secrets en niet in app_config: die laatste is leesbaar voor clients.
+insert into public.app_secrets (key, value)
+values ('ip_hash_salt', gen_random_uuid()::text),
+       ('ip_hash_salt_rotated_at', now()::text)
 on conflict (key) do nothing;
 
 -- ---------------------------------------------------------------------------
@@ -39,7 +40,7 @@ begin
     -- Bestaande jobs met dezelfde naam eerst weg (idempotente migratie).
     perform cron.unschedule(jobid)
     from cron.job
-    where jobname in ('purge-old-data', 'refresh-stats');
+    where jobname = 'purge-old-data';
 
     perform cron.schedule('purge-old-data', '17 3 * * *',
                           $job$ select public.purge_old_data(); $job$);

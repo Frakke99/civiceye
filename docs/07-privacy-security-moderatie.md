@@ -25,7 +25,9 @@ die hij zelf meldt), geen ruwe IP-adressen in de databank.
 Er komt nooit een ruw IP-adres in de databank. `create_report` leest het
 `x-forwarded-for`-veld dat PostgREST doorgeeft, neemt daar alleen het **eerste**
 adres uit (de rest is proxyketen), en slaat er een SHA-256 van op met een salt
-die in `app_config` zit — niet in de code, dus niet in git.
+in `app_secrets` — niet in de code (dus niet in git), en niet in het voor
+clients leesbare `app_config`: wie de salt heeft, kan de IPv4-ruimte
+doorrekenen en hashes weer aan adressen koppelen.
 
 Die salt **roteert maandelijks** (in `purge_old_data`, zodra hij ouder is dan de
 auditbewaartermijn). Na een rotatie is correlatie over de grens heen onmogelijk,
@@ -122,16 +124,10 @@ schrijven, geen andermans melding wijzigen en geen punten toekennen. De tests in
 
 ## Moderatie
 
-Model: **publiceren-dan-modereren, met automatische quarantaine**.
-Zie [ADR 0008](adr/0008-moderatie-model.md).
-
-| Trigger | Gevolg |
-| ------- | ------ |
-| 3 flags | automatisch in quarantaine |
-| 1 flag `private_person` | onmiddellijk in quarantaine |
-| Foto afgekeurd door de scan | onmiddellijk in quarantaine |
-| Moderator: `restore` / `remove` | definitief, gelogd in `moderation_events` |
-| Herhaald misbruik | `block_user` (standaard 30 dagen) |
+Model: **publiceren-dan-modereren, met automatische quarantaine**. De
+triggers, drempels en de onderbouwing staan op één plek:
+[ADR 0008](adr/0008-moderatie-model.md). Geblokkeerde accounts kunnen niet
+flaggen, bevestigen of opruimen — dezelfde check als bij het melden zelf.
 
 De beheerdersconsole (`apps/admin`, Next.js) toont de quarantainewachtrij met
 foto, locatie, reden en de andere meldingen van dezelfde gebruiker. Elke

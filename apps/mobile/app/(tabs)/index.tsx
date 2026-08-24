@@ -8,7 +8,7 @@ import { MapErrorBoundary } from '@/map/ErrorBoundary';
 import { MapFallback } from '@/map/MapFallback';
 import { totalReports } from '@/map/markers';
 import { useMapReports } from '@/api/useMapReports';
-import type { Viewport } from '@/map/types';
+import type { MapCanvasProps, Viewport } from '@/map/types';
 import { theme } from '@/ui/theme';
 
 /** Antwerpen: startpunt van de piloot. */
@@ -18,7 +18,7 @@ export default function KaartScherm() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [viewport, setViewport] = useState<Viewport | null>(null);
-  const [center, setCenter] = useState(START);
+  const [focus, setFocus] = useState<MapCanvasProps['focus']>(null);
 
   const bbox: Bbox | null = viewport?.bbox ?? null;
   const zoom = viewport?.zoom ?? START.zoom;
@@ -34,8 +34,9 @@ export default function KaartScherm() {
   );
 
   const onSelectCluster = useCallback((lng: number, lat: number, nieuweZoom: number) => {
-    // De kaart volgt de nieuwe camera; het venster komt terug via onViewportChange.
-    setCenter({ lng, lat, zoom: nieuweZoom });
+    // De kaart beweegt zelf naar het doel; het venster komt terug via
+    // onViewportChange. seq maakt twee tikken op hetzelfde cluster verschillend.
+    setFocus((vorige) => ({ lng, lat, zoom: nieuweZoom, seq: (vorige?.seq ?? 0) + 1 }));
   }, []);
 
   const fout = error ? parseApiError(error) : null;
@@ -48,9 +49,9 @@ export default function KaartScherm() {
         )}
       >
         <MapCanvas
-          key={`${center.lng},${center.lat},${center.zoom}`}
           markers={zichtbaar}
-          initialCenter={center}
+          initialCenter={START}
+          focus={focus}
           onViewportChange={onViewportChange}
           onSelectReport={onSelectReport}
           onSelectCluster={onSelectCluster}
