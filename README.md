@@ -11,10 +11,12 @@ afvalrapers en vrijwilligers snel zien waar er werk ligt.
 
 ## Status
 
-Dit is de **architectuurfase**. Deze repo bevat (nog) geen applicatiecode: hij
-bevat het ontwerp dat matuur genoeg is voor een eerste publieke roll-out, plus
-de concrete artefacten die je meteen kan uitvoeren (databaseschema, API-contract,
-CI-workflows, testplan).
+**Sprint 1 is gebouwd.** Er is een werkende Expo-app (iOS, Android, web) met een
+MapLibre-kaart die de meldingen uit de databank server-side geclusterd toont, op
+een backend met volledige beveiliging en tests. Melden zelf — locatie, type,
+foto, offline wachtrij — is sprint 2.
+
+Zelf draaien: **[QUICKSTART.md](QUICKSTART.md)**.
 
 ## Waar begin je?
 

@@ -4,3 +4,6 @@ node_modules/
 !.env.example
 *.log
 .DS_Store
+dist/
+.expo/
+expo-env.d.ts

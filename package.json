@@ -1,0 +1,32 @@
+{
+  "name": "global-cleanup",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Anonieme meldkaart voor zwerfafval",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "pnpm --filter @gc/mobile start",
+    "web": "pnpm --filter @gc/mobile exec expo start --web",
+    "web:build": "pnpm --filter @gc/mobile exec expo export --platform web --output-dir dist",
+    "db:test": "./db/test/run_tests.sh",
+    "db:parity": "./scripts/check-points-parity.sh",
+    "e2e:build": "cd apps/mobile && EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:8811 EXPO_PUBLIC_SUPABASE_ANON_KEY=e2e-anon-key EXPO_PUBLIC_ENV=dev EXPO_PUBLIC_MAPTILER_KEY= pnpm exec expo export --platform web --output-dir dist --clear",
+    "test:e2e": "node apps/mobile/e2e/run.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.0",
+    "eslint-config-expo": "^57.0.1",
+    "playwright": "^1.50.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.11"
+  }
+}

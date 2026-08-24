@@ -4,19 +4,29 @@ Zes sprints van elk ongeveer een week (voor één ontwikkelaar die er stevig aan
 werkt). Elke sprint eindigt met iets dat op een toestel werkt — niet met een
 laag die "later gebruikt zal worden".
 
-## Sprint 1 — Fundament
+## Sprint 1 — Fundament ✅
 
-- [ ] Monorepo opzetten (pnpm workspaces, `apps/mobile`, `packages/shared`)
-- [ ] Supabase-projecten `dev` en `staging` aanmaken
-- [ ] `db/migrations/*` toepassen met `supabase db push`
-- [ ] `db/seed/dev_seed.sql` op dev laden
-- [ ] CI-workflow aanzetten en groen krijgen (inclusief de DB-job)
-- [ ] Expo-app die opstart en een MapLibre-kaart met de seed-meldingen toont
+- [x] Monorepo opzetten (pnpm workspaces, `apps/mobile`, `packages/shared`)
+- [ ] Supabase-projecten `dev` en `staging` aanmaken *(jouw account — zie [QUICKSTART](../QUICKSTART.md))*
+- [ ] `db/migrations/*` toepassen *(idem)*
+- [ ] `db/seed/dev_seed.sql` op dev laden *(idem)*
+- [x] CI-workflow aanzetten (DB-job, unittests, lint, types, browsertest)
+- [x] Expo-app die opstart en een MapLibre-kaart met de meldingen toont
 
-**Klaar wanneer:** je op je eigen telefoon, via Expo Go, de 200 seed-meldingen
-op de kaart ziet clusteren.
+**Klaar wanneer:** je de kaart met meldingen ziet clusteren op je eigen toestel.
 
-Dit is bewust de eerste sprint: de kaart met echte data is het risicovolste
+**Correctie op de oorspronkelijke planning:** hier stond "via Expo Go". Dat kan
+niet: MapLibre is een native module en Expo Go bevat alleen de modules die Expo
+zelf meelevert. Op een toestel heb je dus een **development build** nodig
+(`npx expo run:android`, `npx expo run:ios` of
+`eas build --profile development`). De app vangt dit netjes op: in Expo Go zie
+je een uitleg plus dezelfde meldingen als lijst, geen wit scherm.
+
+De web-versie werkt wél zonder enige installatie en gebruikt dezelfde
+MapLibre-renderer — dat blijft de snelste weg om met meerdere toestellen te
+testen.
+
+Dit was bewust de eerste sprint: de kaart met echte data is het risicovolste
 onderdeel van de UI, en je wil dat vroeg weten.
 
 ## Sprint 2 — Melden

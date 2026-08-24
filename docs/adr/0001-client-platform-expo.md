@@ -43,6 +43,17 @@ en de manier waarop iemand zonder installatie kan meekijken.
 - Native modules toevoegen vereist een nieuwe store-build — daarom kiezen we het
   native oppervlak vroeg en houden het klein: camera, locatie, SQLite,
   secure-store, kaart.
+- **Expo Go is geen testkanaal voor de kaart.** MapLibre is een native module en
+  zit niet in Expo Go; op een toestel heb je een development build nodig. De
+  kaartcomponent detecteert dit en valt terug op een lijstweergave met uitleg,
+  zodat Expo Go bruikbaar blijft voor de niet-kaartschermen.
+- **De web-build is een SPA, geen statisch gerenderde site**
+  (`web.output: 'single'` in `app.json`). Statisch renderen zette pre-gerenderde
+  HTML naast een client die de route-parameter wél kent, wat bij elke
+  `/report/<id>`-route een hydratiefout gaf. Voor een kaart-app die zijn data
+  toch client-side ophaalt, levert pre-renderen niets op en kost het een hele
+  klasse bugs. Gevolg voor hosting: de host moet alle routes naar `index.html`
+  laten wijzen (een standaard SPA-rewrite).
 - De web-variant heeft aanvaarde beperkingen: geen achtergrondsync van de
   outbox, minder nauwkeurige GPS. Dat staat in de UI.
 

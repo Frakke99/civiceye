@@ -5,30 +5,30 @@ Zie [ADR 0001](adr/0001-client-platform-expo.md) voor de afweging.
 
 ## Repostructuur
 
+Wat er nu staat (sprint 1), met een ✅ voor wat gebouwd is:
+
 ```
-apps/
-  mobile/            Expo app (iOS, Android, web)
-    app/             expo-router: bestandsgebaseerde routes
-      (tabs)/
-        index.tsx           kaart (startscherm)
-        mine.tsx            mijn meldingen
-        settings.tsx        instellingen, privacy, taal
-      report/
-        new.tsx             melden: locatie → type → foto → posten
-        [id].tsx            detail van een melding
-    src/
-      map/             MapLibre-wrapper, markers, clustering-UI
-      report/          meldformulier, fotobewerking
-      outbox/          offline wachtrij (SQLite) + sync
-      api/             gegenereerde client op api/openapi.yaml
-      i18n/            nl.json, en.json
-      telemetry/       Sentry + PostHog, achter toestemming
-  admin/             Next.js beheerdersconsole (service_role, server-side)
-packages/
-  shared/            types, foutcodes, puntenberekening (gedeeld met admin)
-supabase/
-  functions/         upload-url, scan-photo, export-area
-  migrations/        symlink naar db/migrations
+apps/mobile/            Expo app (iOS, Android, web)          ✅
+  app/                  expo-router: bestandsgebaseerde routes
+    (tabs)/
+      index.tsx           kaart (startscherm)                 ✅
+      mine.tsx            mijn meldingen                      (sprint 2)
+      settings.tsx        instellingen + diagnose             ✅
+    report/
+      [id].tsx            detail van een melding              ✅
+  src/
+    api/                supabase-client, RPC's, query-hooks   ✅
+    auth/               anonieme sessie                       ✅
+    map/                MapLibre-wrapper, markers, fallback   ✅
+    config/             omgevingsvariabelen                   ✅
+    ui/                 thema (kleuren, maten, raakvlakken)   ✅
+    outbox/             offline wachtrij                      (sprint 3)
+    i18n/               nl.json, en.json                      (sprint 5)
+    telemetry/          Sentry + PostHog                       (sprint 4)
+  e2e/                  browsertest tegen een nagemaakt backend ✅
+  test/                 unittests op pure logica              ✅
+apps/admin/             Next.js beheerdersconsole             (sprint 4)
+packages/shared/        types, foutcodes, bbox, punten        ✅
 ```
 
 Monorepo met pnpm workspaces — zie [ADR 0007](adr/0007-repo-structuur.md).
@@ -147,7 +147,9 @@ gebruikt.
 ## Web-variant
 
 Dezelfde codebase via Expo Web, met `maplibre-gl` in plaats van de native
-kaartmodule (één adapter in `src/map/`). Bedoeld voor:
+kaartmodule. De splitsing loopt via Metro's platform-extensies:
+`src/map/MapCanvas.tsx` op native, `src/map/MapCanvas.web.tsx` op web, met
+identieke props uit `src/map/types.ts`. Bedoeld voor:
 
 - testen zonder installatie (jij deelt één URL en iedereen kan mee),
 - gebruikers die geen app willen installeren,
@@ -156,3 +158,12 @@ kaartmodule (één adapter in `src/map/`). Bedoeld voor:
 Beperkingen die we accepteren: geen achtergrondsync van de outbox (enkel zolang
 het tabblad open is), en GPS-nauwkeurigheid is op desktop slechter. De web-app
 toont daarom een expliciete hint om de pin te controleren.
+
+**Hosting:** de web-build is een SPA (`web.output: 'single'`). Elke host moet
+onbekende paden naar `index.html` laten wijzen, anders werkt een directe link
+naar `/report/<id>` niet. Op Vercel en Netlify is dat de standaard-SPA-rewrite;
+zie ook de toelichting in [ADR 0001](adr/0001-client-platform-expo.md).
+
+**Kaart zonder MapTiler-key:** dan valt de app terug op een effen ondergrond met
+de markers erop, in plaats van te falen. Handig om het backend te testen zonder
+kaartaccount.

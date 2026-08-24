@@ -6,12 +6,12 @@ Eerst het eerlijke overzicht, want niet alles is nu al testbaar.
 | --- | ---------- | ---- | --- |
 | Backendlogica: melden, rate limits, moderatie, RLS | **ja**, volledig | 5 min | [laag 1](#laag-1--backend-lokaal-5-minuten) |
 | Echte API vanaf je telefoon, met een kaartweergave | **ja** | ~30 min | [laag 2](#laag-2--echt-project--je-telefoon-30-minuten) |
-| Melden met camera, GPS, offline, op iOS/Android | **nee, nog niet** | ~2 weken | [laag 3](#laag-3--de-echte-app-op-toestellen) |
+| De app zelf draaien (kaart met meldingen) | **ja** | ~10 min | [laag 3](#laag-3--de-app-draaien) |
+| Melden met camera, GPS, offline | **nee, nog niet** | sprint 2-3 | [laag 4](#laag-4--wat-er-nog-niet-is) |
 
-De reden voor die laatste regel: deze repo bevat de architectuur en het volledige
-backend — schema, API, beveiliging, tests — maar **nog geen appcode**. Er is dus
-nog niets om op een toestel te installeren. Wat er wél is, kan je nu al draaien
-en aanraken.
+Sprint 1 is gebouwd: er is een echte Expo-app met een MapLibre-kaart die de
+meldingen uit je databank clustert. Melden zelf (locatie, type, foto, offline
+wachtrij) is sprint 2.
 
 ---
 
@@ -155,20 +155,77 @@ volledige toegang.
 
 ---
 
-## Laag 3 — de echte app op toestellen
+## Laag 3 — de app draaien
 
-Dit vraagt appcode die er nog niet is. Volgens
-[docs/13-implementatieplan.md](docs/13-implementatieplan.md) zijn dat sprint 1
-en 2: kaart met echte data, dan de meldflow met GPS, camera en de offline
-outbox. Daarna geeft EAS je een TestFlight- en een Play-build uit dezelfde
-commit, plus een web-build als deelbare URL.
+### Eenmalig instellen
 
-Wat nu al klaarligt en dus niet meer ontworpen hoeft te worden: het schema, alle
-API-endpoints met hun foutcodes, het contract in `api/openapi.yaml`, de
-beveiligingsregels mét tests, en het testplan met de device-matrix in
-[docs/10](docs/10-rollout-en-testplan.md).
+```bash
+pnpm install
+cp apps/mobile/.env.example apps/mobile/.env
+# vul EXPO_PUBLIC_SUPABASE_URL en EXPO_PUBLIC_SUPABASE_ANON_KEY in
+```
 
----
+De MapTiler-key is optioneel: zonder key krijg je je meldingen op een effen
+ondergrond in plaats van op een kaart. Alles werkt, je ziet alleen geen straten.
+
+### In de browser (snelste weg, werkt op elk toestel)
+
+```bash
+pnpm web
+```
+
+Dat start Expo met de web-versie. Open de URL op je telefoon (zelfde
+wifi-netwerk) en je hebt de echte app — dezelfde MapLibre-renderer als op
+native. Om te delen met testers:
+
+```bash
+pnpm web:build            # bouwt apps/mobile/dist
+```
+
+Zet die map op Vercel, Netlify of GitHub Pages. **Belangrijk:** de build is een
+SPA, dus de host moet onbekende paden naar `index.html` laten wijzen. Zonder die
+rewrite werkt een directe link naar `/report/<id>` niet.
+
+### Op iOS en Android
+
+```bash
+npx expo run:android      # of: npx expo run:ios
+```
+
+Dit maakt een **development build**. Dat is nodig omdat de kaart MapLibre
+gebruikt, een native module die niet in Expo Go zit. Zonder eigen Mac/Android
+Studio kan je hetzelfde via EAS:
+
+```bash
+npx eas build --profile development --platform android
+```
+
+Draai je toch in Expo Go, dan crasht de app niet: je krijgt uitleg en dezelfde
+meldingen als lijst. De overige schermen werken er normaal.
+
+### Controleren of het werkt
+
+```bash
+pnpm test                 # 57 unittests op de pure logica
+pnpm e2e:build            # bouwt de app voor de browsertest
+pnpm test:e2e             # draait de app in Chromium tegen een nagemaakt backend
+```
+
+De e2e-test bewijst dat de kaart rendert, dat de kaartquery een geldige bbox
+verstuurt, dat clusters correct opgeteld worden en dat een onbestaande melding
+een Nederlandse fout geeft in plaats van een crash.
+
+## Laag 4 — wat er nog niet is
+
+| Onderdeel | Sprint |
+| --------- | ------ |
+| Melden: locatie, type, foto, posten | 2 |
+| Offline outbox | 3 |
+| Rapporteren en de beheerdersconsole | 4 |
+| Meertaligheid, store-builds, privacyteksten | 5 |
+| Device-matrix en go/no-go | 6 |
+
+Zie [docs/13-implementatieplan.md](docs/13-implementatieplan.md).
 
 ## Als iets niet lukt
 
@@ -181,3 +238,7 @@ beveiligingsregels mét tests, en het testplan met de device-matrix in
 | Viewer toont `Failed to fetch` | verkeerde URL, of je opende het bestand via `file://` | serveer het via http (stap 6) |
 | `extension "postgis" is not available` lokaal | PostGIS ontbreekt | de Docker-route in laag 1 |
 | Tests falen op datums of retentie | `now()` staat stil binnen een transactie | zie de valkuil in [db/test/README.md](db/test/README.md) |
+| App toont "Kaart niet beschikbaar" op een toestel | je draait in Expo Go | maak een development build (`npx expo run:android`) |
+| Directe link naar `/report/<id>` geeft 404 op je host | SPA-rewrite ontbreekt | alle paden naar `index.html` laten wijzen |
+| `Ontbrekende configuratie: EXPO_PUBLIC_SUPABASE_URL` | geen `.env` in `apps/mobile` | `cp apps/mobile/.env.example apps/mobile/.env` en invullen |
+| Kaart blijft grijs, markers wel zichtbaar | geen MapTiler-key | verwacht gedrag; vul `EXPO_PUBLIC_MAPTILER_KEY` in |

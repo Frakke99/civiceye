@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Global Cleanup",
+    "slug": "global-cleanup",
+    "version": "0.1.0",
+    "orientation": "default",
+    "scheme": "globalcleanup",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "be.globalcleanup.app"
+    },
+    "android": {
+      "package": "be.globalcleanup.app",
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
