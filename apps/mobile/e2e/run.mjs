@@ -212,10 +212,49 @@ const mijn = (await page.textContent('body')) ?? '';
 check('mijn meldingen toont de zonet gemaakte melding',
   mijn.includes('Afvalzak') && mijn.includes('op de kaart'), mijn.slice(0, 80).trim());
 
+// --- 12. offline melden: de outbox houdt de melding vast tot het netwerk terug is ---
+huidigePagina = '/';
+await page.goto('http://127.0.0.1:8810/', { waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(1500);
+const postsVoorOffline = api.calls.filter((c) => c.url.endsWith('/rpc/create_report')).length;
+
+await page.context().setOffline(true);
+await page.getByRole('button', { name: 'Afval melden' }).click();
+await page.waitForTimeout(1500);
+await page.getByRole('button', { name: 'Deze plek klopt' }).click();
+await page.waitForTimeout(400);
+await page.getByRole('button', { name: /Papiertje/ }).click();
+await page.waitForTimeout(2500);
+
+check('offline post bereikt de server niet (blijft in de outbox)',
+  api.calls.filter((c) => c.url.endsWith('/rpc/create_report')).length === postsVoorOffline);
+const offlineBody = (await page.textContent('body')) ?? '';
+check('de kaart toont de zichtbare wachtrij ("wacht op verbinding")',
+  offlineBody.includes('wacht op verbinding'), offlineBody.slice(0, 80).trim());
+
+// Netwerk terug: expo-network hoort het online-event; de 15s-timer is de terugval.
+await page.context().setOffline(false);
+let doorgekomen = false;
+for (let i = 0; i < 25 && !doorgekomen; i++) {
+  await page.waitForTimeout(1000);
+  doorgekomen =
+    api.calls.filter((c) => c.url.endsWith('/rpc/create_report')).length > postsVoorOffline;
+}
+check('netwerk terug → de wachtende melding gaat alsnog door (scenario 14)', doorgekomen);
+const laatstePost = api.calls.filter((c) => c.url.endsWith('/rpc/create_report')).at(-1)?.body ?? {};
+check('de wachtende melding heeft grootte en een uuid client_ref (scenario 13)',
+  laatstePost.p_size === 'piece'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(laatstePost.p_client_ref ?? ''),
+  JSON.stringify({ size: laatstePost.p_size, ref: laatstePost.p_client_ref }));
+await page.waitForTimeout(1000);
+const naOnline = (await page.textContent('body')) ?? '';
+check('de wachtrijbanner verdwijnt zodra alles verzonden is',
+  !naOnline.includes('wacht op verbinding'));
+
 check('geen onafgehandelde JS-fouten in de hele run', pageErrors.length === 0,
   pageErrors.slice(0, 2).join(' | '));
 
 await browser.close();
 web.close(); api.server.close();
-console.log(mislukt === 0 ? '\n✓ sprint 1 + 2 werken end-to-end' : `\n✗ ${mislukt} check(s) gefaald`);
+console.log(mislukt === 0 ? '\n✓ sprint 1 + 2 + 3 werken end-to-end' : `\n✗ ${mislukt} check(s) gefaald`);
 process.exit(mislukt === 0 ? 0 : 1);

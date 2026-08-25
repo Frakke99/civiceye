@@ -40,8 +40,24 @@ export function start(port) {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
-      const b = body ? JSON.parse(body) : {};
-      calls.push({ url: req.url, body: b });
+      // Uploads (PUT met binaire data) zijn geen JSON; die parse mag niet crashen.
+      let b = {};
+      try { b = body ? JSON.parse(body) : {}; } catch { b = { bytes: body.length }; }
+      calls.push({ url: req.url, method: req.method, body: b });
+
+      // Signed upload-URL zoals de upload-url Edge Function (api/openapi.yaml).
+      if (req.url.endsWith('/functions/v1/upload-url')) {
+        const pad = `u/${USER_ID}/e2e-foto.jpg`;
+        res.writeHead(200, cors);
+        return res.end(JSON.stringify({
+          upload_url: `http://127.0.0.1:${server.address().port}/storage/upload/${pad}`,
+          storage_path: pad,
+          expires_at: new Date(Date.now() + 600000).toISOString(),
+        }));
+      }
+      if (req.url.startsWith('/storage/upload/') && req.method === 'PUT') {
+        res.writeHead(200, cors); return res.end(JSON.stringify({ Key: req.url.slice(16) }));
+      }
 
       if (req.url.startsWith('/auth/v1/signup') || req.url.startsWith('/auth/v1/token')) {
         res.writeHead(200, cors);
@@ -100,7 +116,8 @@ export function start(port) {
             created_at: bestaand.created_at, idempotent: true,
           }));
         }
-        const id = 'bbbb2222-3333-4444-5555-666677778888';
+        const volgnr = Object.keys(REPORTS).length;
+        const id = `bbbb2222-3333-4444-5555-66667777888${volgnr}`;
         REPORTS[id] = {
           report_id: id, client_ref: b.p_client_ref,
           kind: b.p_kind, size: b.p_size, lat: b.p_lat, lng: b.p_lng,

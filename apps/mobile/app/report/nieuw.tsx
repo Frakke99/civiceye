@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -19,11 +20,14 @@ import {
   type NearbyReport,
   type ParsedApiError,
 } from '@civiceye/shared';
-import { confirmReport, createReport, fetchNearbyReports } from '@/api/reports';
+import { ApiError, confirmReport, fetchNearbyReports } from '@/api/reports';
 import { ensureSession } from '@/auth/session';
 import { MapCanvas } from '@/map/MapCanvas';
 import { MapErrorBoundary } from '@/map/ErrorBoundary';
 import { relativeTimeNl, sizeLabelNl, SIZE_ICON } from '@/map/markers';
+import { enqueueReport, syncNow, verwijderMislukt } from '@/outbox';
+import { CAMERA_BESCHIKBAAR, pickPhoto } from '@/photo/pickPhoto';
+import { processPhoto, type ProcessedPhoto } from '@/photo/processPhoto';
 import { duplicatesFor, optimisticMarker } from '@/report/logic';
 import { addReportToMapCache } from '@/report/optimistic';
 import { useCurrentLocation } from '@/report/useCurrentLocation';
@@ -63,6 +67,8 @@ export default function NieuweMelding() {
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState<ParsedApiError | null>(null);
   const [notitie, setNotitie] = useState('');
+  const [foto, setFoto] = useState<ProcessedPhoto | null>(null);
+  const [fotoBezig, setFotoBezig] = useState(false);
 
   // Heeft de gebruiker de kaart zelf versleept? State voor de render (de
   // nauwkeurigheidshint), plus een ref-spiegel zodat de GPS-callback hieronder
@@ -123,38 +129,69 @@ export default function NieuweMelding() {
     }
   }, []);
 
+  /**
+   * Posten loopt via de outbox (ADR 0006): eerst in de lokale wachtrij, dan
+   * één directe verzendpoging. Online voelt dat als direct posten; offline
+   * blijft de melding veilig staan en toont de kaart de wachtrij.
+   */
   const post = useCallback(
     async (size: LitterSize) => {
-      // De sessie kan bij het opstarten gefaald zijn (bv. even geen netwerk);
-      // stil opnieuw proberen is beter dan meteen not_authenticated tonen.
-      await ensureSession();
-      const resultaat = await createReport({
-        clientRef: clientRef.current,
-        lat: pin.lat,
-        lng: pin.lng,
-        kind: 'litter',
-        size,
-        note: notitie,
-        accuracyM,
-      });
-      if (!resultaat.deduplicated && !resultaat.idempotent) {
+      await enqueueReport(
+        clientRef.current,
+        {
+          lat: pin.lat,
+          lng: pin.lng,
+          kind: 'litter',
+          size,
+          note: notitie.trim() ? notitie.trim() : undefined,
+          accuracyM,
+        },
+        foto?.uri ?? null,
+      );
+
+      const gevolg = await syncNow();
+
+      // Definitief geweigerd (buiten servicegebied, geblokkeerd, …): hier in
+      // de flow tonen, niet als lijk in de wachtrij laten liggen.
+      const definitief = gevolg.mislukt.find((m) => m.clientRef === clientRef.current);
+      if (definitief) {
+        verwijderMislukt(clientRef.current);
+        throw new ApiError(definitief.code);
+      }
+
+      const verzonden = gevolg.verzonden.find((v) => v.clientRef === clientRef.current);
+      if (verzonden) {
         addReportToMapCache(
           queryClient,
           optimisticMarker({
-            reportId: resultaat.reportId,
+            reportId: verzonden.reportId,
             lat: pin.lat,
             lng: pin.lng,
             kind: 'litter',
             size,
-            createdAt: resultaat.createdAt,
+            createdAt: new Date().toISOString(),
           }),
         );
       }
-      // Terug naar de kaart: daar staat de pin al (optimistisch gerenderd).
+      // Niet verzonden en niet mislukt = wacht op verbinding; de banner op de
+      // kaart maakt dat zichtbaar. In beide gevallen: terug naar de kaart.
       router.replace('/');
     },
-    [accuracyM, notitie, pin.lat, pin.lng, queryClient, router],
+    [accuracyM, foto, notitie, pin.lat, pin.lng, queryClient, router],
   );
+
+  const kiesFoto = useCallback(async (bron: 'camera' | 'bibliotheek') => {
+    setFotoBezig(true);
+    try {
+      const gekozen = await pickPhoto(bron);
+      if (gekozen) setFoto(await processPhoto(gekozen));
+    } catch {
+      // De foto is optioneel; een picker- of verkleinfout mag het melden nooit
+      // blokkeren (docs/05: "de foto blokkeert niets").
+    } finally {
+      setFotoBezig(false);
+    }
+  }, []);
 
   const kiesGrootte = useCallback(
     (size: LitterSize) =>
@@ -204,6 +241,10 @@ export default function NieuweMelding() {
         <TypeStap
           notitie={notitie}
           onNotitie={setNotitie}
+          foto={foto}
+          fotoBezig={fotoBezig}
+          onKiesFoto={(bron) => void kiesFoto(bron)}
+          onVerwijderFoto={() => setFoto(null)}
           onKies={kiesGrootte}
           onTerug={() => setStap({ naam: 'locatie' })}
         />
@@ -330,11 +371,19 @@ function LocatieStap({
 function TypeStap({
   notitie,
   onNotitie,
+  foto,
+  fotoBezig,
+  onKiesFoto,
+  onVerwijderFoto,
   onKies,
   onTerug,
 }: {
   notitie: string;
   onNotitie: (tekst: string) => void;
+  foto: ProcessedPhoto | null;
+  fotoBezig: boolean;
+  onKiesFoto: (bron: 'camera' | 'bibliotheek') => void;
+  onVerwijderFoto: () => void;
   onKies: (size: LitterSize) => void;
   onTerug: () => void;
 }) {
@@ -358,6 +407,49 @@ function TypeStap({
           </View>
         </Pressable>
       ))}
+
+      {foto ? (
+        <View style={styles.fotoRij}>
+          <Image source={{ uri: foto.uri }} style={styles.fotoMini} accessibilityLabel="Gekozen foto" />
+          <Pressable
+            style={styles.secundair}
+            accessibilityRole="button"
+            accessibilityLabel="Foto weghalen"
+            onPress={onVerwijderFoto}
+          >
+            <Text style={styles.secundairTekst}>Foto weghalen</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.fotoKnoppen}>
+          {CAMERA_BESCHIKBAAR ? (
+            <Pressable
+              style={[styles.secundair, styles.fotoKnop]}
+              accessibilityRole="button"
+              accessibilityLabel="Foto nemen met de camera, niet verplicht"
+              disabled={fotoBezig}
+              onPress={() => onKiesFoto('camera')}
+            >
+              <Text style={styles.secundairTekst}>📷 Foto nemen</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            style={[styles.secundair, styles.fotoKnop]}
+            accessibilityRole="button"
+            accessibilityLabel="Foto kiezen uit je bibliotheek, niet verplicht"
+            disabled={fotoBezig}
+            onPress={() => onKiesFoto('bibliotheek')}
+          >
+            <Text style={styles.secundairTekst}>
+              {fotoBezig ? 'Foto verkleinen…' : '🖼️ Foto kiezen'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      <Text style={styles.klein}>
+        Een foto is niet verplicht. Ze wordt verkleind en zonder metadata verstuurd, en pas
+        getoond na een automatische controle.
+      </Text>
 
       <TextInput
         style={styles.notitie}
@@ -500,6 +592,15 @@ const styles = StyleSheet.create({
   grootteIcoon: { fontSize: 30 },
   grootteTekst: { flex: 1, gap: 2 },
   grootteLabel: { fontSize: 17, fontWeight: '700', color: theme.color.text },
+  fotoKnoppen: { flexDirection: 'row', gap: theme.space(2) },
+  fotoKnop: { flex: 1 },
+  fotoRij: { flexDirection: 'row', alignItems: 'center', gap: theme.space(3) },
+  fotoMini: {
+    width: 96,
+    height: 72,
+    borderRadius: theme.radius.s,
+    backgroundColor: theme.color.bgElevated,
+  },
   notitie: {
     minHeight: theme.minTouch + 12,
     padding: theme.space(3),

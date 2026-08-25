@@ -28,7 +28,16 @@
           "locationWhenInUsePermission": "CivicEye gebruikt je locatie alleen om de pin van je melding op de juiste plek te zetten. Er is geen achtergrondtracking.",
           "isAndroidBackgroundLocationEnabled": false
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "CivicEye gebruikt de camera alleen om een foto bij je melding te maken. De foto wordt verkleind en zonder metadata verstuurd.",
+          "photosPermission": "CivicEye gebruikt je fotobibliotheek alleen om een foto bij je melding te kiezen. De foto wordt verkleind en zonder metadata verstuurd.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true

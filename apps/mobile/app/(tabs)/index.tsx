@@ -8,6 +8,7 @@ import { MapErrorBoundary } from '@/map/ErrorBoundary';
 import { MapFallback } from '@/map/MapFallback';
 import { totalReports } from '@/map/markers';
 import { useMapReports } from '@/api/useMapReports';
+import { useOutbox } from '@/outbox/useOutbox';
 import type { Viewport } from '@/map/types';
 import { theme } from '@/ui/theme';
 
@@ -39,6 +40,7 @@ export default function KaartScherm() {
   }, []);
 
   const fout = error ? parseApiError(error) : null;
+  const outbox = useOutbox();
 
   return (
     <View style={styles.root}>
@@ -69,6 +71,19 @@ export default function KaartScherm() {
       {fout ? (
         <View style={[styles.foutBalk, { bottom: insets.bottom + theme.space(20) }]}>
           <Text style={styles.foutTekst}>{errorText(fout.code, fout.detail)}</Text>
+        </View>
+      ) : null}
+
+      {/* De outbox is zichtbaar (ADR 0006): een onzichtbare wachtrij voelt als
+          dataverlies, ook als de data er nog is. */}
+      {outbox.items.length > 0 ? (
+        // Boven de foutbalk als die er ook staat, anders op dezelfde plek.
+        <View style={[styles.wachtBalk, { bottom: insets.bottom + theme.space(fout ? 32 : 20) }]}>
+          <Text style={styles.wachtTekst}>
+            {outbox.items.length === 1
+              ? '1 melding wacht op verbinding'
+              : `${outbox.items.length} meldingen wachten op verbinding`}
+          </Text>
         </View>
       ) : null}
 
@@ -112,6 +127,16 @@ const styles = StyleSheet.create({
     borderColor: theme.color.danger,
   },
   foutTekst: { color: theme.color.danger, fontSize: 13 },
+  wachtBalk: {
+    position: 'absolute',
+    left: theme.space(3),
+    padding: theme.space(3),
+    borderRadius: theme.radius.m,
+    backgroundColor: '#fff7e6',
+    borderWidth: 1,
+    borderColor: theme.color.warning,
+  },
+  wachtTekst: { color: theme.color.warning, fontSize: 13, fontWeight: '600' },
   meldKnop: {
     position: 'absolute',
     right: theme.space(4),

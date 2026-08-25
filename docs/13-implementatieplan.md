@@ -52,20 +52,36 @@ een dubbele melding worden. "Mijn meldingen" is meegenomen: eigen meldingen
 via RLS, inclusief quarantaine. De offline outbox is bewust sprint 3 gebleven;
 een netwerkfout toont nu een expliciete retry-knop.
 
-## Sprint 3 — Foto's en offline
+## Sprint 3 — Foto's en offline ✅
 
-- [ ] `upload-url` Edge Function
-- [ ] Client: verkleinen naar 1600 px, JPEG q80 (EXIF verdwijnt)
-- [ ] `scan-photo` Edge Function + storage-webhook (eerst met een mock die alles
+- [x] `upload-url` Edge Function
+- [x] Client: verkleinen naar 1600 px, JPEG q80 (EXIF verdwijnt)
+- [x] `scan-photo` Edge Function + storage-webhook (eerst met een mock die alles
       goedkeurt, daarna de echte vision-API)
-- [ ] Offline outbox in SQLite, met backoff en zichtbare status
-- [ ] Retry- en idempotentietests (scenario's 11–15 uit [10](10-rollout-en-testplan.md))
+- [x] Offline outbox in SQLite, met backoff en zichtbare status
+- [x] Retry- en idempotentietests (scenario's 11–15 uit [10](10-rollout-en-testplan.md))
 
 **Klaar wanneer:** vijf meldingen met foto in vliegtuigmodus, daarna netwerk
 aan, geeft exact vijf meldingen met foto — niet vier, niet zes.
 
 Sprint 3 is de zwaarste. De outbox en de fotopijplijn zijn waar de subtiele
 bugs zitten; plan hier ruimte.
+
+**Hoe het gebouwd is:** de outbox heeft een pure kern (`src/outbox/core.ts`)
+met injecteerbare opslag, API en klok — de scenario's 11–15 zijn daardoor
+unittests in plaats van beloftes, inclusief "vijf offline meldingen worden er
+exact vijf". Opslag is SQLite op native en localStorage op web; de drie
+sync-triggers uit ADR 0006 (voorgrond, netwerk terug, timer) staan in de
+root-layout aan. Een captive portal wordt gebroken door een harde timeout van
+15 s die als netwerkfout parseert. De foto gaat vóór de melding; alleen een
+netwerkfout houdt het hele item vast, elke andere uploadfout laat de melding
+zonder foto doorgaan. De Edge Functions staan in `supabase/functions/` (met
+deploy- en webhookinstructies in de README daar); de scanner is de mock die
+alles goedkeurt (`SCAN_PROVIDER=mock`) — de echte vision-API is een bewuste
+vervolgstap, want die vraagt een providerkeuze, een EU-regio en een plek in
+het verwerkingsregister (ADR 0005). Het pad naar publicatie is verder
+compleet: webhook → scan → verplaatsen naar `photo-public` →
+`complete_photo_scan`, en een `flagged`-uitslag zet de melding in quarantaine.
 
 ## Sprint 4 — Moderatie en beheer
 

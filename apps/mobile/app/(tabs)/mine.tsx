@@ -13,6 +13,8 @@ import { errorText, parseApiError, type ReportStatus } from '@civiceye/shared';
 import { fetchMyReports, type MyReport } from '@/api/reports';
 import { currentUserId } from '@/auth/session';
 import { relativeTimeNl, sizeLabelNl, SIZE_ICON, KIND_ICON } from '@/map/markers';
+import { verwijderMislukt } from '@/outbox';
+import { useOutbox } from '@/outbox/useOutbox';
 import { theme } from '@/ui/theme';
 
 /**
@@ -22,6 +24,7 @@ import { theme } from '@/ui/theme';
  */
 export default function MijnMeldingen() {
   const router = useRouter();
+  const outbox = useOutbox();
   const [userId, setUserId] = useState<string | null>(null);
   const [sessieGezocht, setSessieGezocht] = useState(false);
 
@@ -51,6 +54,7 @@ export default function MijnMeldingen() {
     return (
       <View style={styles.root}>
         <Text style={styles.titel}>Mijn meldingen</Text>
+        <WachtrijSectie outbox={outbox} />
         <Text style={styles.tekst}>
           Er is nog geen sessie op dit toestel. Zodra je verbinding hebt en je eerste melding
           maakt, verschijnen je meldingen hier.
@@ -64,6 +68,7 @@ export default function MijnMeldingen() {
     return (
       <View style={styles.root}>
         <Text style={styles.titel}>Mijn meldingen</Text>
+        <WachtrijSectie outbox={outbox} />
         <Text style={styles.tekst}>{errorText(fout.code, fout.detail)}</Text>
       </View>
     );
@@ -74,6 +79,7 @@ export default function MijnMeldingen() {
   return (
     <View style={styles.root}>
       <Text style={styles.titel}>Mijn meldingen</Text>
+      <WachtrijSectie outbox={outbox} />
       {meldingen.length === 0 ? (
         <Text style={styles.tekst}>
           Nog geen meldingen. Tik op de kaart op “Afval melden” — je meldingen verschijnen
@@ -87,6 +93,48 @@ export default function MijnMeldingen() {
           renderItem={({ item }) => <MeldingRij melding={item} router={router} />}
         />
       )}
+    </View>
+  );
+}
+
+/**
+ * De offline wachtrij en de definitief mislukte meldingen, bovenaan: dit is
+ * wat er met je meldingen gebeurt vóór ze op de server staan (ADR 0006).
+ */
+function WachtrijSectie({ outbox }: { outbox: ReturnType<typeof useOutbox> }) {
+  if (outbox.items.length === 0 && outbox.mislukt.length === 0) return null;
+
+  return (
+    <View style={styles.wachtrij}>
+      {outbox.items.map((item) => (
+        <View key={item.clientRef} style={styles.rij}>
+          <Text style={styles.icoon}>{item.payload.size ? SIZE_ICON[item.payload.size] : '🗑️'}</Text>
+          <View style={styles.rijTekst}>
+            <Text style={styles.label}>{sizeLabelNl(item.payload.size)}</Text>
+            <Text style={styles.klein}>
+              {relativeTimeNl(new Date(item.createdAt).toISOString())}
+              {item.photoUri || item.photoPath ? ' · met foto' : ''}
+            </Text>
+          </View>
+          <Text style={[styles.status, { color: theme.color.warning }]}>wacht op verbinding</Text>
+        </View>
+      ))}
+      {outbox.mislukt.map((m) => (
+        <Pressable
+          key={m.clientRef}
+          style={styles.rij}
+          accessibilityRole="button"
+          accessibilityLabel={`Mislukte melding: ${errorText(m.code)}. Tik om weg te halen.`}
+          onPress={() => verwijderMislukt(m.clientRef)}
+        >
+          <Text style={styles.icoon}>⚠️</Text>
+          <View style={styles.rijTekst}>
+            <Text style={styles.label}>Niet gelukt</Text>
+            <Text style={styles.klein}>{errorText(m.code)}</Text>
+          </View>
+          <Text style={[styles.status, { color: theme.color.danger }]}>tik om weg te halen</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -147,6 +195,7 @@ const styles = StyleSheet.create({
   tekst: { color: theme.color.textMuted, lineHeight: 22 },
   klein: { color: theme.color.textMuted, fontSize: 12, lineHeight: 18 },
   lijst: { gap: theme.space(2) },
+  wachtrij: { gap: theme.space(2) },
   rij: {
     flexDirection: 'row',
     alignItems: 'center',

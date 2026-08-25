@@ -142,6 +142,8 @@ export interface NewReport {
   size: LitterSize | null;
   note?: string;
   accuracyM?: number | null;
+  /** storage_path uit de upload-url Edge Function; null = melding zonder foto. */
+  photoPath?: string | null;
 }
 
 export interface CreateReportResult {
@@ -180,6 +182,7 @@ export async function createReport(melding: NewReport): Promise<CreateReportResu
     p_size: melding.size,
     p_note: melding.note?.trim() ? melding.note.trim() : null,
     p_accuracy_m: melding.accuracyM ?? null,
+    p_photo_path: melding.photoPath ?? null,
     p_client: clientPlatform(),
     p_app_version: Constants.expoConfig?.version ?? null,
   });
