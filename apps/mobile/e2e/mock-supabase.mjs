@@ -79,6 +79,14 @@ export function start(port) {
                kind: 'litter', size: 'piece', has_photo: true, created_at: '2026-08-22T10:00:00Z' },
              { is_cluster: true, lng: 4.4600, lat: 51.2170, point_count: 7, report_id: null,
                kind: 'litter', size: 'bag', has_photo: false, created_at: '2026-08-19T10:00:00Z' }];
+        // Wat tijdens deze demo gemeld is, verschijnt als losse pin — ook op
+        // een ander toestel dat naar dezelfde mock kijkt.
+        for (const r of Object.values(REPORTS)) {
+          if (!r.is_mine || r.status !== 'published') continue;
+          rows.push({ is_cluster: false, lng: r.lng, lat: r.lat, point_count: 1,
+            report_id: r.report_id, kind: r.kind, size: r.size,
+            has_photo: r.photos.length > 0, created_at: r.created_at });
+        }
         res.writeHead(200, cors); return res.end(JSON.stringify(rows));
       }
 

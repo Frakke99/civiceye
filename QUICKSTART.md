@@ -7,11 +7,14 @@ Eerst het eerlijke overzicht, want niet alles is nu al testbaar.
 | Backendlogica: melden, rate limits, moderatie, RLS | **ja**, volledig | 5 min | [laag 1](#laag-1--backend-lokaal-5-minuten) |
 | Echte API vanaf je telefoon, met een kaartweergave | **ja** | ~30 min | [laag 2](#laag-2--echt-project--je-telefoon-30-minuten) |
 | De app zelf draaien (kaart met meldingen) | **ja** | ~10 min | [laag 3](#laag-3--de-app-draaien) |
-| Melden met camera, GPS, offline | **nee, nog niet** | sprint 2-3 | [laag 4](#laag-4--wat-er-nog-niet-is) |
+| Melden met GPS, foto en offline wachtrij | **ja** | zit in de app | sprint 2 + 3 zijn gebouwd |
+| Eén deelbare demo-URL voor al je testers | **ja** | ~15 min na laag 2 | [de deelbare demo-URL](#de-deelbare-demo-url-github-pages) |
+| Rapporteren, beheerdersconsole | nee | sprint 4 | [laag 4](#laag-4--wat-er-nog-niet-is) |
 
-Sprint 1 is gebouwd: er is een echte Expo-app met een MapLibre-kaart die de
-meldingen uit je databank clustert. Melden zelf (locatie, type, foto, offline
-wachtrij) is sprint 2.
+Sprint 1 tot en met 3 zijn gebouwd: een Expo-app met een MapLibre-kaart die de
+meldingen clustert, een volledige meldflow (GPS + versleepbare pin, drie
+groottes, duplicaatvraag), foto's die verkleind en zonder EXIF vertrekken, en
+een offline outbox die meldingen vasthoudt tot er weer netwerk is.
 
 **Nog nooit een terminal gebruikt voor dit project?** Begin bij
 [Voor je begint](#voor-je-begint--de-code-op-je-eigen-machine): daar staat hoe
@@ -64,7 +67,7 @@ git --version
 ```bash
 git clone https://github.com/Frakke99/global-cleanup.git civiceye
 cd civiceye
-git checkout claude/afval-meldingsapp-architecture-zuaypg
+git checkout claude/bouw-sprint-2-ppkjav
 ```
 
 Twee dingen om te weten bij deze drie regels:
@@ -75,7 +78,9 @@ Twee dingen om te weten bij deze drie regels:
   clone-URL `civiceye` te zetten, komt de code toch in een map met de
   juiste naam. Hernoem je de repo later, dan blijft deze URL werken:
   GitHub stuurt oude adressen door.
-- De laatste regel is belangrijk: het werk staat op die branch, niet op `main`.
+- De laatste regel is belangrijk zolang [PR #2](https://github.com/Frakke99/civiceye/pull/2)
+  (sprint 2 + 3) nog niet gemerged is: het recentste werk staat op die branch.
+  Na de merge volstaat `main` en mag je die regel weglaten.
 
 Vanaf nu geldt: **je staat in de map `civiceye`** wanneer je een commando
 uit dit document uitvoert. Controleer dat met `pwd` (macOS/Linux) of `cd`
@@ -89,12 +94,25 @@ pnpm e2e:build   # bouwt de web-app (~1 min)
 pnpm demo        # start de app met verzonnen meldingen
 ```
 
-Het laatste commando print twee adressen: één voor deze computer en één voor je
-telefoon op hetzelfde wifi-netwerk. Open dat adres in je browser. Stoppen doe je
-met Ctrl-C.
+Het laatste commando print het adres voor deze computer. Open het in je
+browser: kaart, meldflow, offline wachtrij — alles werkt tegen een nagemaakt
+backend. Stoppen doe je met Ctrl-C.
 
-Je hebt hier **geen Supabase-project voor nodig** — de demo praat met een
-nagemaakt backend. Wil je je eigen data zien, ga dan naar laag 2 en 3.
+**Ook op je telefoon meekijken (zelfde wifi)?** Gebruik dan:
+
+```bash
+pnpm demo:lan    # bouwt met het wifi-adres van deze machine én start de demo
+```
+
+De gewone build bakt `127.0.0.1` in als API-adres, en dat is op je telefoon de
+telefoon zelf — vandaar de aparte variant. Wat je op het ene toestel meldt,
+verschijnt op het andere na een kaartbeweging. Nog twee beperkingen van deze
+weg: GPS werkt op een telefoon alleen via https (dus hier niet — de pin
+verslepen werkt wél), en de verzonnen data verdwijnt zodra je de demo stopt.
+
+Je hebt hier **geen Supabase-project voor nodig**. Voor een echte demo met
+blijvende data en een deelbare link: laag 2 en daarna
+[de deelbare demo-URL](#de-deelbare-demo-url-github-pages).
 
 ---
 
@@ -289,22 +307,58 @@ meldingen als lijst. De overige schermen werken er normaal.
 ### Controleren of het werkt
 
 ```bash
-pnpm test                 # 57 unittests op de pure logica
+pnpm test                 # 85 unittests op de pure logica
 pnpm e2e:build            # bouwt de app voor de browsertest
 pnpm test:e2e             # draait de app in Chromium tegen een nagemaakt backend
 ```
 
-De e2e-test bewijst dat de kaart rendert, dat de kaartquery een geldige bbox
-verstuurt, dat clusters correct opgeteld worden en dat een onbestaande melding
-een Nederlandse fout geeft in plaats van een crash.
+De e2e-test bewijst dat de kaart rendert, doorloopt de volledige meldflow
+(GPS, duplicaatvraag, de exacte post-payload) en doet een offline→online-
+rondgang: offline melden, de zichtbare wachtrij, en de melding die alsnog
+doorgaat zodra het netwerk terug is.
+
+---
+
+## De deelbare demo-URL (GitHub Pages)
+
+Dit is de weg naar "één link sturen en iedereen test mee, op eender welk
+toestel": de web-app op GitHub Pages, tegen je echte Supabase-project. Https,
+dus GPS werkt ook op telefoons. Voorwaarde: laag 2 is gedaan (project,
+migraties, anonieme aanmeldingen, seed).
+
+Eenmalig, in de GitHub-repo (~5 minuten):
+
+1. **Settings → Pages → Source** op **GitHub Actions** zetten.
+2. **Settings → Secrets and variables → Actions → tab Variables** — drie
+   repository variables aanmaken:
+
+   | Naam | Waarde |
+   | ---- | ------ |
+   | `EXPO_PUBLIC_SUPABASE_URL` | `https://<ref>.supabase.co` |
+   | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | de anon/publishable key |
+   | `EXPO_PUBLIC_MAPTILER_KEY` | optioneel — gratis key van maptiler.com |
+
+   Variables en geen Secrets: deze waarden zitten sowieso in de publieke
+   app-bundle. De `service_role`-key hoort hier dus **nooit** bij.
+3. **Actions → "Web-demo naar GitHub Pages" → Run workflow.** Kies de branch
+   met het recentste werk (of `main` na de merge van PR #2). Daarna deployt
+   elke push naar `main` automatisch opnieuw.
+
+De app staat dan op `https://<owner>.github.io/<repo>/` — dat is de link die
+je deelt. De MapTiler-key is voor een demo sterk aan te raden: mét key zien
+testers straten en pleinen, zonder key een effen ondergrond.
+
+Foto's meesturen werkt pas wanneer ook de twee Edge Functions gedeployed zijn
+(zie [supabase/functions/README.md](supabase/functions/README.md)); zonder die
+functies gaat een melding gewoon zonder foto door — de rest van de demo merkt
+er niets van.
 
 ## Laag 4 — wat er nog niet is
 
 | Onderdeel | Sprint |
 | --------- | ------ |
-| Melden: locatie, type, foto, posten | 2 |
-| Offline outbox | 3 |
 | Rapporteren en de beheerdersconsole | 4 |
+| Echte vision-API in de fotoscan (nu: mock keurt alles goed) | 4–5 |
 | Meertaligheid, store-builds, privacyteksten | 5 |
 | Device-matrix en go/no-go | 6 |
 
