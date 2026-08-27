@@ -357,10 +357,15 @@ er niets van.
 
 | Onderdeel | Sprint |
 | --------- | ------ |
-| Rapporteren en de beheerdersconsole | 4 |
+| Sentry en uptime-alerts (vraagt accounts) | 4 |
 | Echte vision-API in de fotoscan (nu: mock keurt alles goed) | 4–5 |
 | Meertaligheid, store-builds, privacyteksten | 5 |
 | Device-matrix en go/no-go | 6 |
+
+Rapporteren zit sinds sprint 4 in de app, en de beheerdersconsole staat in
+`apps/admin` (`pnpm --filter @civiceye/admin dev`, zie de `.env.example` daar).
+Een moderator is een gewone Supabase-gebruiker (Authentication → Users) die je
+promoveert met `update public.profiles set trust_level = 3 where id = '<uuid>'`.
 
 Zie [docs/13-implementatieplan.md](docs/13-implementatieplan.md).
 

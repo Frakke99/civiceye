@@ -491,4 +491,71 @@ begin
 end;
 $$;
 
+-- --- moderatiewachtrij en moderatorleesrechten (console, sprint 4) --------
+select set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
+do $$
+declare v_rijen integer;
+begin
+  select count(*) into v_rijen from public.moderation_queue();
+  if v_rijen < 1 then
+    raise exception 'ASSERT FAILED: de wachtrij hoort gequarantineerde meldingen te tonen';
+  end if;
+  -- st_y/st_x moeten echte coördinaten geven, geen WKB of nul
+  if exists (
+    select 1 from public.moderation_queue()
+    where lat not between -90 and 90 or lng not between -180 and 180
+       or (lat = 0 and lng = 0)
+  ) then
+    raise exception 'ASSERT FAILED: wachtrij geeft ongeldige coördinaten';
+  end if;
+  raise notice 'ok — moderation_queue: % item(s), met bruikbare coördinaten', v_rijen;
+end;
+$$;
+
+-- moderator ziet alle flags (de console toont de redenen bij elk item)
+do $$
+declare v_zicht integer; v_totaal integer; v_id uuid;
+begin
+  -- de purge-sectie hierboven ruimde de eerdere flags mee op (cascade);
+  -- leg er dus eerst één klaar van een gewone gebruiker
+  perform set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', true);
+  select id into v_id from public.reports
+  where status = 'published'
+    and created_by <> '22222222-2222-2222-2222-222222222222'
+  limit 1;
+  perform public.flag_report(v_id, 'spam', 'testflag voor de console');
+
+  perform set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-333333333333', true);
+  select count(*) into v_totaal from public.report_flags;
+  set local role authenticated;
+  select count(*) into v_zicht from public.report_flags;
+  reset role;
+  if v_zicht <> v_totaal or v_totaal < 1 then
+    raise exception 'ASSERT FAILED: moderator ziet % van % flags', v_zicht, v_totaal;
+  end if;
+  raise notice 'ok — moderator leest alle flags (% rijen)', v_zicht;
+end;
+$$;
+
+-- een gewone gebruiker ziet enkel zijn eigen flags
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', true);
+do $$
+declare v_zicht integer;
+begin
+  set local role authenticated;
+  select count(*) into v_zicht from public.report_flags
+  where flagged_by <> '11111111-1111-1111-1111-111111111111';
+  reset role;
+  if v_zicht <> 0 then
+    raise exception 'ASSERT FAILED: gewone gebruiker ziet % flags van anderen', v_zicht;
+  end if;
+  raise notice 'ok — gewone gebruiker ziet geen flags van anderen';
+end;
+$$;
+
+-- en de wachtrij zelf is verboden terrein voor niet-moderators
+select pg_temp.expect_error(
+  $$ select * from public.moderation_queue() $$,
+  'forbidden');
+
 rollback;

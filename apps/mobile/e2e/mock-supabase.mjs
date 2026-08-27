@@ -140,6 +140,18 @@ export function start(port) {
         }));
       }
 
+      if (req.url.endsWith('/rpc/flag_report')) {
+        const r = REPORTS[b.p_report_id];
+        if (!r) { res.writeHead(400, cors); return res.end(JSON.stringify({ message: 'report_not_found' })); }
+        r.flag_count = (r.flag_count ?? 0) + 1;
+        // Zelfde regels als de echte functie: privacyklacht of drie flags → quarantaine.
+        if (b.p_reason === 'private_person' || r.flag_count >= 3) r.status = 'quarantined';
+        res.writeHead(200, cors);
+        return res.end(JSON.stringify({
+          report_id: r.report_id, flag_count: r.flag_count, status: r.status,
+        }));
+      }
+
       if (req.url.endsWith('/rpc/confirm_report')) {
         const r = REPORTS[b.p_report_id];
         if (!r) { res.writeHead(400, cors); return res.end(JSON.stringify({ message: 'report_not_found' })); }

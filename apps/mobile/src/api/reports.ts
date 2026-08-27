@@ -6,6 +6,7 @@ import {
   clampZoom,
   type Bbox,
   type ClientPlatform,
+  type FlagReason,
   type LitterSize,
   type MapMarker,
   type NearbyReport,
@@ -238,6 +239,26 @@ export async function confirmReport(reportId: string): Promise<number> {
   const { data, error } = await supabase.rpc('confirm_report', { p_report_id: reportId });
   if (error) throw new ApiError(error);
   return Number((data as Record<string, unknown>).confirm_count ?? 0);
+}
+
+/**
+ * Rapporteren. De server quarantineert automatisch bij drie flags — of bij
+ * één enkele 'private_person', want daar is de schade al bezig terwijl je op
+ * een tweede klacht wacht (ADR 0008).
+ */
+export async function flagReport(
+  reportId: string,
+  reason: FlagReason,
+  detail?: string,
+): Promise<{ flagCount: number; status: ReportStatus }> {
+  const { data, error } = await supabase.rpc('flag_report', {
+    p_report_id: reportId,
+    p_reason: reason,
+    p_detail: detail?.trim() ? detail.trim() : null,
+  });
+  if (error) throw new ApiError(error);
+  const d = data as Record<string, unknown>;
+  return { flagCount: Number(d.flag_count ?? 0), status: d.status as ReportStatus };
 }
 
 /** Publieke CDN-URL van een gescande foto. */

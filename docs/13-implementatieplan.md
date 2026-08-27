@@ -85,15 +85,30 @@ compleet: webhook → scan → verplaatsen naar `photo-public` →
 
 ## Sprint 4 — Moderatie en beheer
 
-- [ ] `flag_report` in de app, met alle redenen
-- [ ] Beheerdersconsole (Next.js): quarantainewachtrij, herstellen, verwijderen,
+- [x] `flag_report` in de app, met alle redenen
+- [x] Beheerdersconsole (Next.js): quarantainewachtrij, herstellen, verwijderen,
       gebruiker blokkeren
 - [ ] Sentry in app en Edge Functions, met de log-hygiëneregels uit [09](09-observability-en-slo.md)
-- [ ] Uptime-check en de vijf alerts
-- [ ] `purge_old_data` schedulen via pg_cron
+      *(vraagt een Sentry-account — jouw stap)*
+- [ ] Uptime-check en de vijf alerts *(vraagt een monitoringaccount — jouw stap)*
+- [x] `purge_old_data` schedulen via pg_cron *(zit in migratie
+      [0004](../db/migrations/0004_seed_regions_and_jobs.sql); op Supabase één keer
+      de pg_cron-extensie aanzetten)*
 
 **Klaar wanneer:** je een eigen melding kan rapporteren, ze uit de app zien
 verdwijnen, en ze in de console kan herstellen.
+
+**Hoe het gebouwd is:** rapporteren zit op het detailscherm, met alle redenen
+uit het schema; `private_person` quarantineert onmiddellijk (ADR 0008) en de
+gebruiker krijgt dat ook te zien. De console (`apps/admin`, Next.js) draait op
+een gewoon moderatoraccount — e-mail/wachtwoord-gebruiker met
+`trust_level >= 3` — via RLS en de bestaande RPC's; er zit géén
+service_role-key in de browser. Migratie
+[0006](../db/migrations/0006_moderation.sql) voegt de leesrechten en de
+`moderation_queue`-RPC toe (oudste eerst, met de rapportredenen en een
+termijnindicator: 24 u bij privacyklachten, 72 u overig). Sentry en de
+uptime-alerts zijn de twee open punten: allebei extern account-werk, geen
+codewerk van betekenis.
 
 ## Sprint 5 — Klaar voor testers
 

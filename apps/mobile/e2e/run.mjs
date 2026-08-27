@@ -137,6 +137,22 @@ check('detailscherm toont de notitie', detail.includes('Zak naast het bankje'));
 check('detailscherm toont GPS-nauwkeurigheid', /±\s*9?\s*m|± 9 m|± 8 m/.test(detail) || detail.includes('± 9 m'),
   detail.match(/±[^·\n]{0,8}/)?.[0] ?? 'niet gevonden');
 
+// --- 7b. rapporteren (sprint 4): reden kiezen → flag_report → bedankt ---
+await page.getByRole('button', { name: 'Rapporteer deze melding' }).click();
+await page.waitForTimeout(400);
+const redenen = (await page.textContent('body')) ?? '';
+check('rapporteerflow toont de redenen', redenen.includes('Ligt er niet meer')
+  && redenen.includes('Er staat een persoon herkenbaar op'));
+await page.getByRole('button', { name: 'Spam of onzin' }).click();
+await page.waitForTimeout(1000);
+const flagCalls = api.calls.filter((c) => c.url.endsWith('/rpc/flag_report'));
+check('flag_report wordt aangeroepen met de gekozen reden',
+  flagCalls.length === 1 && flagCalls[0].body.p_reason === 'spam',
+  JSON.stringify(flagCalls[0]?.body ?? {}));
+const naFlag = (await page.textContent('body')) ?? '';
+check('rapporteren geeft een bevestiging', naFlag.includes('Bedankt'),
+  naFlag.slice(0, 60).trim());
+
 // --- 8. onbestaande melding geeft een nette fout ---
 huidigePagina = '/report/00000000-0000-0000-0000-000000000000';
 await page.goto('http://127.0.0.1:8810/report/00000000-0000-0000-0000-000000000000',
@@ -256,5 +272,5 @@ check('geen onafgehandelde JS-fouten in de hele run', pageErrors.length === 0,
 
 await browser.close();
 web.close(); api.server.close();
-console.log(mislukt === 0 ? '\n✓ sprint 1 + 2 + 3 werken end-to-end' : `\n✗ ${mislukt} check(s) gefaald`);
+console.log(mislukt === 0 ? '\n✓ sprint 1 t/m 4 werken end-to-end' : `\n✗ ${mislukt} check(s) gefaald`);
 process.exit(mislukt === 0 ? 0 : 1);

@@ -3,3 +3,4 @@ export * from './errors';
 export * from './points';
 export * from './bbox';
 export * from './ids';
+export * from './texts';

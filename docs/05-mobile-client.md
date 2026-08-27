@@ -27,10 +27,10 @@ apps/mobile/            Expo app (iOS, Android, web)          ✅
     config/             omgevingsvariabelen                   ✅
     ui/                 thema (kleuren, maten, raakvlakken)   ✅
     i18n/               nl.json, en.json                      (sprint 5)
-    telemetry/          Sentry + PostHog                       (sprint 4)
+    telemetry/          Sentry + PostHog                       (open: vraagt account)
   e2e/                  browsertest tegen een nagemaakt backend ✅
   test/                 unittests op pure logica              ✅
-apps/admin/             Next.js beheerdersconsole             (sprint 4)
+apps/admin/             Next.js beheerdersconsole             ✅
 packages/shared/        types, foutcodes, bbox, punten        ✅
 supabase/functions/     upload-url, scan-photo (Deno)         ✅
 ```
