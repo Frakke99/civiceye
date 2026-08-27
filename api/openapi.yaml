@@ -328,6 +328,56 @@ paths:
         '400':
           $ref: '#/components/responses/DomainError'
 
+  /rest/v1/rpc/moderation_queue:
+    post:
+      tags: [moderatie]
+      summary: Quarantainewachtrij voor de beheerdersconsole
+      description: |
+        Oudste eerst, want de reactietermijnen uit ADR 0008 gelden voor het
+        oudste item. Alleen voor moderators (trust_level >= 3); anders
+        `forbidden`.
+      operationId: moderationQueue
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                p_limit: { type: integer, default: 100, maximum: 500 }
+      responses:
+        '200':
+          description: Gequarantineerde meldingen met hun rapportredenen
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    report_id:    { type: string, format: uuid }
+                    kind:         { $ref: '#/components/schemas/ReportKind' }
+                    size:         { $ref: '#/components/schemas/LitterSize' }
+                    lat:          { type: number, format: double }
+                    lng:          { type: number, format: double }
+                    note:         { type: [string, "null"] }
+                    status:       { $ref: '#/components/schemas/ReportStatus' }
+                    flag_count:   { type: integer }
+                    photo_count:  { type: integer }
+                    created_by:   { type: string, format: uuid }
+                    created_at:   { type: string, format: date-time }
+                    moderated_at: { type: [string, "null"], format: date-time }
+                    flags:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          reason:     { type: string }
+                          detail:     { type: [string, "null"] }
+                          created_at: { type: string, format: date-time }
+        '400':
+          $ref: '#/components/responses/DomainError'
+
   /functions/v1/upload-url:
     post:
       tags: [fotos]

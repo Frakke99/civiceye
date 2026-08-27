@@ -20,6 +20,7 @@
     "e2e:build": "pnpm prepare:web && cd apps/mobile && EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:8811 EXPO_PUBLIC_SUPABASE_ANON_KEY=e2e-anon-key EXPO_PUBLIC_ENV=dev EXPO_PUBLIC_MAPTILER_KEY= pnpm exec expo export --platform web --output-dir dist --clear",
     "test:e2e": "node apps/mobile/e2e/run.mjs",
     "demo": "node apps/mobile/e2e/serve-demo.mjs",
+    "demo:lan": "node apps/mobile/e2e/build-demo.mjs && node apps/mobile/e2e/serve-demo.mjs",
     "prepare:web": "node scripts/prepare-web-assets.mjs"
   },
   "devDependencies": {

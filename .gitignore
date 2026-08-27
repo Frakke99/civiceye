@@ -6,5 +6,7 @@ node_modules/
 .DS_Store
 dist/
 .expo/
+.next/
 expo-env.d.ts
 apps/mobile/public/maplibre/
+*.tsbuildinfo

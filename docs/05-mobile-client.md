@@ -5,30 +5,34 @@ Zie [ADR 0001](adr/0001-client-platform-expo.md) voor de afweging.
 
 ## Repostructuur
 
-Wat er nu staat (sprint 1), met een ✅ voor wat gebouwd is:
+Wat er nu staat (sprint 1 + 2 + 3), met een ✅ voor wat gebouwd is:
 
 ```
 apps/mobile/            Expo app (iOS, Android, web)          ✅
   app/                  expo-router: bestandsgebaseerde routes
     (tabs)/
       index.tsx           kaart (startscherm)                 ✅
-      mine.tsx            mijn meldingen                      (sprint 2)
+      mine.tsx            mijn meldingen + wachtrij           ✅
       settings.tsx        instellingen + diagnose             ✅
     report/
       [id].tsx            detail van een melding              ✅
+      nieuw.tsx           meldflow: locatie → type → posten   ✅
   src/
     api/                supabase-client, RPC's, query-hooks   ✅
     auth/               anonieme sessie                       ✅
     map/                MapLibre-wrapper, markers, fallback   ✅
+    report/             meldflow-logica, GPS, optimistische pin ✅
+    photo/              kiezen, verkleinen (EXIF weg), upload ✅
+    outbox/             offline wachtrij (SQLite / web)       ✅
     config/             omgevingsvariabelen                   ✅
     ui/                 thema (kleuren, maten, raakvlakken)   ✅
-    outbox/             offline wachtrij                      (sprint 3)
     i18n/               nl.json, en.json                      (sprint 5)
-    telemetry/          Sentry + PostHog                       (sprint 4)
+    telemetry/          Sentry + PostHog                       (open: vraagt account)
   e2e/                  browsertest tegen een nagemaakt backend ✅
   test/                 unittests op pure logica              ✅
-apps/admin/             Next.js beheerdersconsole             (sprint 4)
+apps/admin/             Next.js beheerdersconsole             ✅
 packages/shared/        types, foutcodes, bbox, punten        ✅
+supabase/functions/     upload-url, scan-photo (Deno)         ✅
 ```
 
 Monorepo met pnpm workspaces — zie [ADR 0007](adr/0007-repo-structuur.md).

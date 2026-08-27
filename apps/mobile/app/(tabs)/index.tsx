@@ -8,6 +8,7 @@ import { MapErrorBoundary } from '@/map/ErrorBoundary';
 import { MapFallback } from '@/map/MapFallback';
 import { totalReports } from '@/map/markers';
 import { useMapReports } from '@/api/useMapReports';
+import { useOutbox } from '@/outbox/useOutbox';
 import type { Viewport } from '@/map/types';
 import { theme } from '@/ui/theme';
 
@@ -39,6 +40,7 @@ export default function KaartScherm() {
   }, []);
 
   const fout = error ? parseApiError(error) : null;
+  const outbox = useOutbox();
 
   return (
     <View style={styles.root}>
@@ -72,13 +74,24 @@ export default function KaartScherm() {
         </View>
       ) : null}
 
-      {/* Sprint 2 vult deze knop met de meldflow. Hij staat er nu al zodat de
-          plaatsing op elk toestel getest kan worden (rechtsonder, één hand). */}
+      {/* De outbox is zichtbaar (ADR 0006): een onzichtbare wachtrij voelt als
+          dataverlies, ook als de data er nog is. */}
+      {outbox.items.length > 0 ? (
+        // Boven de foutbalk als die er ook staat, anders op dezelfde plek.
+        <View style={[styles.wachtBalk, { bottom: insets.bottom + theme.space(fout ? 32 : 20) }]}>
+          <Text style={styles.wachtTekst}>
+            {outbox.items.length === 1
+              ? '1 melding wacht op verbinding'
+              : `${outbox.items.length} meldingen wachten op verbinding`}
+          </Text>
+        </View>
+      ) : null}
+
       <Pressable
         style={[styles.meldKnop, { bottom: insets.bottom + theme.space(6) }]}
         accessibilityRole="button"
         accessibilityLabel="Afval melden"
-        accessibilityHint="Komt in de volgende versie"
+        accessibilityHint="Opent de meldflow: locatie kiezen en grootte aantikken"
         onPress={() => router.push('/report/nieuw')}
       >
         <Text style={styles.meldKnopTekst}>Afval melden</Text>
@@ -114,6 +127,16 @@ const styles = StyleSheet.create({
     borderColor: theme.color.danger,
   },
   foutTekst: { color: theme.color.danger, fontSize: 13 },
+  wachtBalk: {
+    position: 'absolute',
+    left: theme.space(3),
+    padding: theme.space(3),
+    borderRadius: theme.radius.m,
+    backgroundColor: '#fff7e6',
+    borderWidth: 1,
+    borderColor: theme.color.warning,
+  },
+  wachtTekst: { color: theme.color.warning, fontSize: 13, fontWeight: '600' },
   meldKnop: {
     position: 'absolute',
     right: theme.space(4),

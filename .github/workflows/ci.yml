@@ -55,7 +55,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -q -d civiceye_filled -f db/seed/dev_seed.sql
           # opnieuw toepassen: migraties moeten idempotent genoeg zijn om
           # zonder fout over bestaande data te lopen
-          for f in db/migrations/000[2-5]*.sql; do
+          for f in db/migrations/000[2-9]*.sql; do
             psql -q -d civiceye_filled -f "$f" > /dev/null 2>&1 || true
           done
           psql -v ON_ERROR_STOP=1 -q -d civiceye_filled \

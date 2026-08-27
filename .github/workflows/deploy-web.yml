@@ -1,0 +1,81 @@
+# Web-demo naar GitHub Pages: één deelbare https-URL voor alle toestellen.
+#
+# Eenmalige setup (repo-instellingen, zie ook QUICKSTART.md):
+#   1. Settings → Pages → Source: "GitHub Actions"
+#   2. Settings → Secrets and variables → Actions → tab "Variables":
+#        EXPO_PUBLIC_SUPABASE_URL       https://<ref>.supabase.co
+#        EXPO_PUBLIC_SUPABASE_ANON_KEY  <anon/publishable key>
+#        EXPO_PUBLIC_MAPTILER_KEY       <optioneel — echte kaartondergrond>
+#      (Variables, geen Secrets: deze waarden zitten toch in de publieke
+#       app-bundle; de anon key is by design publiek.)
+#   3. Draai deze workflow via Actions → "Web-demo naar GitHub Pages" →
+#      Run workflow. Daarna loopt hij ook bij elke push naar main.
+#
+# De app komt op https://<owner>.github.io/<repo>/ — https, dus GPS werkt op
+# telefoons. GitHub Pages is een SPA-host zonder rewrites; de 404.html-kopie
+# hieronder is de standaardtruc zodat een directe link naar /report/<id> werkt.
+name: Web-demo naar GitHub Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # Zonder geconfigureerd Supabase-project is er niets zinnigs te deployen.
+    if: vars.EXPO_PUBLIC_SUPABASE_URL != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # GitHub Pages serveert een projectsite onder /<repo>/; Expo moet dat
+      # voorvoegsel kennen, anders wijzen alle asset- en routepaden naar de root.
+      - name: baseUrl op de reponaam zetten
+        working-directory: apps/mobile
+        run: |
+          jq --arg base "/${{ github.event.repository.name }}" \
+            '.expo.experiments.baseUrl = $base' app.json > app.json.tmp
+          mv app.json.tmp app.json
+
+      - name: Web-app bouwen
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_MAPTILER_KEY: ${{ vars.EXPO_PUBLIC_MAPTILER_KEY }}
+          EXPO_PUBLIC_ENV: staging
+        run: |
+          node ../../scripts/prepare-web-assets.mjs
+          pnpm exec expo export --platform web --output-dir dist
+
+      - name: SPA-fallback voor directe links
+        run: cp apps/mobile/dist/index.html apps/mobile/dist/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/mobile/dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

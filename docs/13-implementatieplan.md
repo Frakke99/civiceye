@@ -29,26 +29,37 @@ testen.
 Dit was bewust de eerste sprint: de kaart met echte data is het risicovolste
 onderdeel van de UI, en je wil dat vroeg weten.
 
-## Sprint 2 — Melden
+## Sprint 2 — Melden ✅
 
-- [ ] Anonieme auth bij de eerste start, sessie in secure store
-- [ ] Meldflow: locatie (GPS + versleepbare pin) → drie typekeuzes → posten
-- [ ] `create_report` aansluiten, met de volledige foutcodemapping
-- [ ] Optimistische pin op de kaart
-- [ ] `nearby_reports` vóór het posten → "bevestigen of toch melden"
-- [ ] Detailscherm van een melding
+- [x] Anonieme auth bij de eerste start, sessie in secure store
+- [x] Meldflow: locatie (GPS + versleepbare pin) → drie typekeuzes → posten
+- [x] `create_report` aansluiten, met de volledige foutcodemapping
+- [x] Optimistische pin op de kaart
+- [x] `nearby_reports` vóór het posten → "bevestigen of toch melden"
+- [x] Detailscherm van een melding
 
 **Klaar wanneer:** je buiten kan wandelen, drie meldingen kan maken, en ze op
 een tweede toestel ziet verschijnen.
 
-## Sprint 3 — Foto's en offline
+**Hoe het gebouwd is:** de "versleepbare pin" is een vaste pin in het midden
+van een kaartje dat je onder de pin door sleept — één aanrakingsmodel, werkt
+identiek op web en native. GPS wordt pas gevraagd in de flow zelf, met de
+uitleg uit `app.json` (expo-location); geweigerd betekent gewoon zelf slepen.
+De duplicaatvraag verschijnt alleen bij hetzelfde type binnen 20 m, en
+"bevestigen" gaat via `confirm_report`. Elke post krijgt bij de start van de
+flow een `client_ref` (uuid v4), dus "opnieuw proberen" na een fout kan nooit
+een dubbele melding worden. "Mijn meldingen" is meegenomen: eigen meldingen
+via RLS, inclusief quarantaine. De offline outbox is bewust sprint 3 gebleven;
+een netwerkfout toont nu een expliciete retry-knop.
 
-- [ ] `upload-url` Edge Function
-- [ ] Client: verkleinen naar 1600 px, JPEG q80 (EXIF verdwijnt)
-- [ ] `scan-photo` Edge Function + storage-webhook (eerst met een mock die alles
+## Sprint 3 — Foto's en offline ✅
+
+- [x] `upload-url` Edge Function
+- [x] Client: verkleinen naar 1600 px, JPEG q80 (EXIF verdwijnt)
+- [x] `scan-photo` Edge Function + storage-webhook (eerst met een mock die alles
       goedkeurt, daarna de echte vision-API)
-- [ ] Offline outbox in SQLite, met backoff en zichtbare status
-- [ ] Retry- en idempotentietests (scenario's 11–15 uit [10](10-rollout-en-testplan.md))
+- [x] Offline outbox in SQLite, met backoff en zichtbare status
+- [x] Retry- en idempotentietests (scenario's 11–15 uit [10](10-rollout-en-testplan.md))
 
 **Klaar wanneer:** vijf meldingen met foto in vliegtuigmodus, daarna netwerk
 aan, geeft exact vijf meldingen met foto — niet vier, niet zes.
@@ -56,17 +67,48 @@ aan, geeft exact vijf meldingen met foto — niet vier, niet zes.
 Sprint 3 is de zwaarste. De outbox en de fotopijplijn zijn waar de subtiele
 bugs zitten; plan hier ruimte.
 
+**Hoe het gebouwd is:** de outbox heeft een pure kern (`src/outbox/core.ts`)
+met injecteerbare opslag, API en klok — de scenario's 11–15 zijn daardoor
+unittests in plaats van beloftes, inclusief "vijf offline meldingen worden er
+exact vijf". Opslag is SQLite op native en localStorage op web; de drie
+sync-triggers uit ADR 0006 (voorgrond, netwerk terug, timer) staan in de
+root-layout aan. Een captive portal wordt gebroken door een harde timeout van
+15 s die als netwerkfout parseert. De foto gaat vóór de melding; alleen een
+netwerkfout houdt het hele item vast, elke andere uploadfout laat de melding
+zonder foto doorgaan. De Edge Functions staan in `supabase/functions/` (met
+deploy- en webhookinstructies in de README daar); de scanner is de mock die
+alles goedkeurt (`SCAN_PROVIDER=mock`) — de echte vision-API is een bewuste
+vervolgstap, want die vraagt een providerkeuze, een EU-regio en een plek in
+het verwerkingsregister (ADR 0005). Het pad naar publicatie is verder
+compleet: webhook → scan → verplaatsen naar `photo-public` →
+`complete_photo_scan`, en een `flagged`-uitslag zet de melding in quarantaine.
+
 ## Sprint 4 — Moderatie en beheer
 
-- [ ] `flag_report` in de app, met alle redenen
-- [ ] Beheerdersconsole (Next.js): quarantainewachtrij, herstellen, verwijderen,
+- [x] `flag_report` in de app, met alle redenen
+- [x] Beheerdersconsole (Next.js): quarantainewachtrij, herstellen, verwijderen,
       gebruiker blokkeren
 - [ ] Sentry in app en Edge Functions, met de log-hygiëneregels uit [09](09-observability-en-slo.md)
-- [ ] Uptime-check en de vijf alerts
-- [ ] `purge_old_data` schedulen via pg_cron
+      *(vraagt een Sentry-account — jouw stap)*
+- [ ] Uptime-check en de vijf alerts *(vraagt een monitoringaccount — jouw stap)*
+- [x] `purge_old_data` schedulen via pg_cron *(zit in migratie
+      [0004](../db/migrations/0004_seed_regions_and_jobs.sql); op Supabase één keer
+      de pg_cron-extensie aanzetten)*
 
 **Klaar wanneer:** je een eigen melding kan rapporteren, ze uit de app zien
 verdwijnen, en ze in de console kan herstellen.
+
+**Hoe het gebouwd is:** rapporteren zit op het detailscherm, met alle redenen
+uit het schema; `private_person` quarantineert onmiddellijk (ADR 0008) en de
+gebruiker krijgt dat ook te zien. De console (`apps/admin`, Next.js) draait op
+een gewoon moderatoraccount — e-mail/wachtwoord-gebruiker met
+`trust_level >= 3` — via RLS en de bestaande RPC's; er zit géén
+service_role-key in de browser. Migratie
+[0006](../db/migrations/0006_moderation.sql) voegt de leesrechten en de
+`moderation_queue`-RPC toe (oudste eerst, met de rapportredenen en een
+termijnindicator: 24 u bij privacyklachten, 72 u overig). Sentry en de
+uptime-alerts zijn de twee open punten: allebei extern account-werk, geen
+codewerk van betekenis.
 
 ## Sprint 5 — Klaar voor testers
 
