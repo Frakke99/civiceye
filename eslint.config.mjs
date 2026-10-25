@@ -13,6 +13,8 @@ export default tseslint.config(
       'db/**',
       'tools/**',
       'scripts/points-table.ts',
+      // Deno-code met eigen toolchain en jsr:-imports; zie supabase/functions/README.md.
+      'supabase/functions/**',
     ],
   },
   js.configs.recommended,

@@ -1,8 +1,26 @@
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { errorText, parseApiError } from '@civiceye/shared';
-import { fetchReportDetails, photoUrl } from '@/api/reports';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  errorText,
+  parseApiError,
+  statusTekstNl,
+  FLAG_REASONS,
+  FLAG_REASON_NL,
+  type FlagReason,
+} from '@civiceye/shared';
+import { fetchReportDetails, flagReport, photoUrl } from '@/api/reports';
+import { ensureSession } from '@/auth/session';
 import { relativeTimeNl, sizeLabelNl } from '@/map/markers';
 import { env } from '@/config/env';
 import { theme } from '@/ui/theme';
@@ -10,23 +28,9 @@ import { theme } from '@/ui/theme';
 export default function MeldingDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  // 'nieuw' is de route van de meldflow (sprint 2). Bewust een aparte component
-  // en geen early return: hooks moeten in elke render in dezelfde volgorde
-  // aangeroepen worden, ook wanneer je van /report/nieuw naar /report/<uuid> gaat.
-  if (id === 'nieuw') return <MeldflowNogNiet />;
+  // De meldflow leeft op zijn eigen statische route (app/report/nieuw.tsx);
+  // expo-router kiest die vóór deze dynamische, dus hier komen enkel uuid's.
   return <MeldingInhoud id={id} />;
-}
-
-function MeldflowNogNiet() {
-  return (
-    <View style={styles.midden}>
-      <Text style={styles.titel}>Melden komt in de volgende versie</Text>
-      <Text style={styles.tekst}>
-        Deze versie toont de kaart met bestaande meldingen. De meldflow — locatie, type,
-        foto, offline wachtrij — is sprint 2.
-      </Text>
-    </View>
-  );
 }
 
 function MeldingInhoud({ id }: { id: string }) {
@@ -83,18 +87,107 @@ function MeldingInhoud({ id }: { id: string }) {
           label="GPS-nauwkeurigheid"
           waarde={data.accuracyM === null ? 'onbekend' : `± ${Math.round(data.accuracyM)} m`}
         />
-        <Rij label="Status" waarde={data.status === 'cleaned' ? 'opgeruimd' : 'open'} />
+        <Rij label="Status" waarde={statusTekstNl(data.status)} />
         {data.confirmCount > 0 ? (
           <Rij label="Bevestigd door" waarde={`${data.confirmCount} mensen`} />
         ) : null}
         {data.isMine ? <Rij label="Van jou" waarde="ja" /> : null}
       </View>
 
-      {/* Opruimen en rapporteren komen in sprint 2 en 4. */}
-      <Text style={styles.klein}>
-        Opruimen markeren en rapporteren komen in een volgende versie.
-      </Text>
+      {data.status === 'quarantined' && data.isMine ? (
+        <Text style={styles.klein}>
+          Deze melding wordt nagekeken en staat even niet op de publieke kaart. Jij ziet haar
+          nog wel; na het nazicht wordt ze hersteld of verwijderd.
+        </Text>
+      ) : null}
+
+      {/* Eigen meldingen rapporteer je niet; die kan je in fase 2 opruimen. */}
+      {!data.isMine ? <RapporteerSectie reportId={id} /> : null}
+
+      <Text style={styles.klein}>Opruimen markeren komt in een volgende versie.</Text>
     </ScrollView>
+  );
+}
+
+/**
+ * Rapporteren (sprint 4). De server quarantineert automatisch bij drie flags,
+ * of meteen bij 'private_person' (ADR 0008) — vandaar de aparte uitlegtekst
+ * wanneer de melding door jouw rapport verdween.
+ */
+function RapporteerSectie({ reportId }: { reportId: string }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState('');
+  const [bezig, setBezig] = useState(false);
+  const [klaar, setKlaar] = useState<string | null>(null);
+  const [fout, setFout] = useState<string | null>(null);
+
+  const verstuur = async (reason: FlagReason) => {
+    setBezig(true);
+    setFout(null);
+    try {
+      await ensureSession();
+      const resultaat = await flagReport(reportId, reason, detail);
+      setKlaar(
+        resultaat.status === 'quarantined'
+          ? 'Bedankt. De melding is van de kaart gehaald en wordt nagekeken.'
+          : 'Bedankt voor je rapport. Bij meerdere rapporten wordt de melding nagekeken.',
+      );
+      // De kaart kan veranderd zijn (quarantaine); de detailquery laten we met
+      // rust — voor een niet-eigenaar zou een refetch nu report_not_found geven.
+      void queryClient.invalidateQueries({ queryKey: ['map-reports'] });
+    } catch (e) {
+      const parsed = parseApiError(e);
+      setFout(errorText(parsed.code, parsed.detail));
+    } finally {
+      setBezig(false);
+    }
+  };
+
+  if (klaar) {
+    return <Text style={styles.rapporteerKlaar}>{klaar}</Text>;
+  }
+
+  if (!open) {
+    return (
+      <Pressable
+        style={styles.rapporteerKnop}
+        accessibilityRole="button"
+        accessibilityLabel="Rapporteer deze melding"
+        onPress={() => setOpen(true)}
+      >
+        <Text style={styles.rapporteerKnopTekst}>Klopt hier iets niet? Rapporteer</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={styles.rapporteerVak}>
+      <Text style={styles.rapporteerTitel}>Wat klopt er niet?</Text>
+      {FLAG_REASONS.map((reason) => (
+        <Pressable
+          key={reason}
+          style={styles.redenKnop}
+          accessibilityRole="button"
+          accessibilityLabel={FLAG_REASON_NL[reason]}
+          disabled={bezig}
+          onPress={() => void verstuur(reason)}
+        >
+          <Text style={styles.redenTekst}>{FLAG_REASON_NL[reason]}</Text>
+        </Pressable>
+      ))}
+      <TextInput
+        style={styles.rapporteerInput}
+        value={detail}
+        onChangeText={setDetail}
+        placeholder="Toelichting (niet verplicht)"
+        placeholderTextColor={theme.color.textMuted}
+        maxLength={280}
+        accessibilityLabel="Toelichting bij je rapport, niet verplicht"
+      />
+      {bezig ? <ActivityIndicator color={theme.color.accent} /> : null}
+      {fout ? <Text style={styles.rapporteerFout}>{fout}</Text> : null}
+    </View>
   );
 }
 
@@ -145,4 +238,43 @@ const styles = StyleSheet.create({
   label: { color: theme.color.textMuted },
   waarde: { color: theme.color.text, fontWeight: '600' },
   klein: { color: theme.color.textMuted, fontSize: 12, lineHeight: 18 },
+  rapporteerKnop: {
+    minHeight: theme.minTouch,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: theme.radius.pill,
+    borderWidth: 1,
+    borderColor: theme.color.line,
+  },
+  rapporteerKnopTekst: { color: theme.color.textMuted, fontWeight: '600' },
+  rapporteerVak: {
+    gap: theme.space(2),
+    padding: theme.space(4),
+    borderRadius: theme.radius.m,
+    borderWidth: 1,
+    borderColor: theme.color.line,
+    backgroundColor: theme.color.bgElevated,
+  },
+  rapporteerTitel: { fontSize: 15, fontWeight: '700', color: theme.color.text },
+  redenKnop: {
+    minHeight: theme.minTouch,
+    justifyContent: 'center',
+    paddingHorizontal: theme.space(3),
+    borderRadius: theme.radius.s,
+    borderWidth: 1,
+    borderColor: theme.color.line,
+    backgroundColor: theme.color.bg,
+  },
+  redenTekst: { color: theme.color.text, fontWeight: '600' },
+  rapporteerInput: {
+    minHeight: theme.minTouch,
+    padding: theme.space(3),
+    borderRadius: theme.radius.s,
+    borderWidth: 1,
+    borderColor: theme.color.line,
+    color: theme.color.text,
+    backgroundColor: theme.color.bg,
+  },
+  rapporteerFout: { color: theme.color.danger, fontSize: 13 },
+  rapporteerKlaar: { color: theme.color.accent, fontWeight: '600', lineHeight: 20 },
 });
