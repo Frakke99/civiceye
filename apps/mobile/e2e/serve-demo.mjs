@@ -9,11 +9,14 @@
  */
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { serveStatic } from './static-server.mjs';
 import { start } from './mock-supabase.mjs';
 
-const HIER = path.dirname(new URL(import.meta.url).pathname);
+// fileURLToPath en niet .pathname: dat laatste geeft op Windows '/C:/...'
+// en dan zoekt Node alles in het onbestaande 'C:\\C:\\...'.
+const HIER = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.resolve(HIER, '..', 'dist');
 const WEB_POORT = 8810;
 const API_POORT = 8811;

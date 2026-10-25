@@ -43,8 +43,16 @@ Windows (PowerShell):
 ```powershell
 winget install OpenJS.NodeJS.LTS
 winget install Git.Git
+
+# PowerShell blokkeert standaard alle scripts, en npm/pnpm zíjn scripts.
+# Dit versoepelt dat alleen voor jouw account (geen admin nodig):
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
 npm install -g pnpm@10
 ```
+
+Krijg je toch "running scripts is disabled on this system", dan is die
+`Set-ExecutionPolicy`-regel nog niet gedraaid — draai hem en probeer opnieuw.
 
 macOS (met Homebrew):
 
@@ -104,11 +112,31 @@ backend. Stoppen doe je met Ctrl-C.
 pnpm demo:lan    # bouwt met het wifi-adres van deze machine én start de demo
 ```
 
-De gewone build bakt `127.0.0.1` in als API-adres, en dat is op je telefoon de
-telefoon zelf — vandaar de aparte variant. Wat je op het ene toestel meldt,
-verschijnt op het andere na een kaartbeweging. Nog twee beperkingen van deze
-weg: GPS werkt op een telefoon alleen via https (dus hier niet — de pin
-verslepen werkt wél), en de verzonnen data verdwijnt zodra je de demo stopt.
+De gewone build bakt `127.0.0.1` in als API-adres; open je de demo via het
+wifi-adres, dan stuurt de app de dataverzoeken automatisch naar datzelfde
+adres. Wat je op het ene toestel meldt, verschijnt op het andere na een
+kaartbeweging. Nog twee beperkingen van deze weg: GPS werkt op een telefoon
+alleen via https (dus hier niet — de pin verslepen werkt wél), en de verzonnen
+data verdwijnt zodra je de demo stopt.
+
+> **Telefoon krijgt "site niet bereikbaar"?** Dan blokkeert de Windows
+> Firewall inkomende verbindingen naar Node. Twee dingen controleren:
+>
+> 1. Bij de eerste start toont Windows een venster "Windows Defender Firewall
+>    heeft enkele functies van Node.js geblokkeerd" — vink daar
+>    **Privénetwerken** aan en klik *Toegang toestaan*. Weggeklikt? Herstel het
+>    met één regel in een **PowerShell als administrator**:
+>
+>    ```powershell
+>    New-NetFirewallRule -DisplayName "CivicEye demo" -Direction Inbound -Protocol TCP -LocalPort 8810,8811 -Action Allow
+>    ```
+>
+> 2. Je wifi moet op je pc als **Privénetwerk** staan: Instellingen → Netwerk
+>    en internet → Wi-Fi → jouw netwerk → Netwerkprofieltype → Privé. Op
+>    "Openbaar" blokkeert Windows dit soort verkeer sowieso.
+>
+> Helpt dat niet: zet een eventuele VPN op je telefoon uit, en weet dat
+> gasten-wifi vaak "isolatie" heeft waardoor toestellen elkaar nooit zien.
 
 Je hebt hier **geen Supabase-project voor nodig**. Voor een echte demo met
 blijvende data en een deelbare link: laag 2 en daarna

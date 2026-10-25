@@ -11,6 +11,7 @@
 import { execSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const lan = Object.values(os.networkInterfaces())
   .flat()
@@ -22,7 +23,9 @@ if (!lan) {
   process.exit(1);
 }
 
-const HIER = path.dirname(new URL(import.meta.url).pathname);
+// fileURLToPath en niet .pathname: dat laatste geeft op Windows '/C:/...'
+// en dan zoekt Node alles in het onbestaande 'C:\\C:\\...'.
+const HIER = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HIER, '..', '..', '..');
 
 console.log(`\nWeb-app bouwen met de API op http://${lan}:8811 …\n`);
