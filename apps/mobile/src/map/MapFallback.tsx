@@ -1,6 +1,7 @@
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MapMarker } from '@civiceye/shared';
 import { markerLabel, relativeTimeNl, sizeLabelNl, totalReports } from './markers';
+import { t } from '@/i18n';
 import { theme } from '@/ui/theme';
 
 interface Props {
@@ -20,24 +21,22 @@ export function MapFallback({ markers, reden, onSelectReport }: Props) {
     <View style={styles.root}>
       {reden ? (
         <View style={styles.melding}>
-          <Text style={styles.meldingTitel}>Kaart niet beschikbaar</Text>
+          <Text style={styles.meldingTitel} accessibilityRole="header">
+            {t('fallback.titel')}
+          </Text>
           <Text style={styles.meldingTekst}>{reden}</Text>
         </View>
       ) : null}
 
       <Text style={styles.samenvatting}>
-        {markers.length} markers · {totalReports(markers)} meldingen
+        {t('fallback.samenvatting', { markers: markers.length, meldingen: totalReports(markers) })}
       </Text>
 
       <FlatList
         data={markers}
         keyExtractor={(m, i) => m.reportId ?? `cluster-${i}`}
         ItemSeparatorComponent={() => <View style={styles.scheiding} />}
-        ListEmptyComponent={
-          <Text style={styles.leeg}>
-            Geen meldingen in dit gebied. Laad db/seed/dev_seed.sql voor testdata.
-          </Text>
-        }
+        ListEmptyComponent={<Text style={styles.leeg}>{t('fallback.leeg')}</Text>}
         renderItem={({ item }) => (
           <Pressable
             style={styles.rij}
@@ -46,7 +45,7 @@ export function MapFallback({ markers, reden, onSelectReport }: Props) {
             accessibilityRole={item.isCluster ? 'text' : 'button'}
             accessibilityLabel={
               item.isCluster
-                ? `Cluster van ${item.pointCount} meldingen`
+                ? t('fallback.clusterLabel', { n: item.pointCount })
                 : `${sizeLabelNl(item.size)}, ${relativeTimeNl(item.createdAt)}`
             }
           >
@@ -54,12 +53,12 @@ export function MapFallback({ markers, reden, onSelectReport }: Props) {
             <View style={styles.rijTekst}>
               <Text style={styles.titel}>
                 {item.isCluster
-                  ? `${item.pointCount} meldingen samen`
+                  ? t('fallback.cluster', { n: item.pointCount })
                   : sizeLabelNl(item.size)}
               </Text>
               <Text style={styles.detail}>
                 {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
-                {item.hasPhoto ? ' · met foto' : ''}
+                {item.hasPhoto ? ` · ${t('algemeen.metFoto')}` : ''}
               </Text>
             </View>
             <Text style={styles.tijd}>{relativeTimeNl(item.createdAt)}</Text>

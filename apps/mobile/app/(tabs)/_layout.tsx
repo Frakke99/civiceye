@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
+import { t } from '@/i18n';
 import { theme } from '@/ui/theme';
 
 export default function TabsLayout() {
@@ -14,21 +15,21 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Kaart',
+          title: t('tabs.kaart'),
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🗺️</Text>,
         }}
       />
       <Tabs.Screen
         name="mine"
         options={{
-          title: 'Mijn meldingen',
+          title: t('tabs.mijn'),
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>📍</Text>,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Instellingen',
+          title: t('tabs.instellingen'),
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>⚙️</Text>,
         }}
       />

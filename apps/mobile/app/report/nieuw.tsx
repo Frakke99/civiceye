@@ -31,6 +31,7 @@ import { processPhoto, type ProcessedPhoto } from '@/photo/processPhoto';
 import { duplicatesFor, optimisticMarker } from '@/report/logic';
 import { addReportToMapCache } from '@/report/optimistic';
 import { useCurrentLocation } from '@/report/useCurrentLocation';
+import { t } from '@/i18n';
 import type { Viewport } from '@/map/types';
 import { theme } from '@/ui/theme';
 
@@ -41,9 +42,9 @@ const START = { lng: 4.4025, lat: 51.2194, zoom: 16 };
 const PIN_ZOOM = 17;
 
 const SIZES: { size: LitterSize; uitleg: string }[] = [
-  { size: 'piece', uitleg: 'één stuk, past in je hand' },
-  { size: 'bag', uitleg: 'ongeveer één zak vol' },
-  { size: 'heap', uitleg: 'meer dan één zak' },
+  { size: 'piece', uitleg: t('meldflow.uitlegPiece') },
+  { size: 'bag', uitleg: t('meldflow.uitlegBag') },
+  { size: 'heap', uitleg: t('meldflow.uitlegHeap') },
 ];
 
 type Stap =
@@ -265,7 +266,7 @@ export default function NieuweMelding() {
         <View style={styles.foutBalk}>
           <Text style={styles.foutTekst}>
             {fout.code === 'network'
-              ? 'Geen verbinding. Probeer het opnieuw zodra je netwerk hebt.'
+              ? t('meldflow.foutNetwerk')
               : errorText(fout.code, fout.detail)}
           </Text>
           {/* Een fout ontstaat altijd uit een actie, dus er valt altijd iets te
@@ -273,21 +274,21 @@ export default function NieuweMelding() {
           <Pressable
             style={styles.foutKnop}
             accessibilityRole="button"
-            accessibilityLabel="Opnieuw proberen"
+            accessibilityLabel={t('algemeen.opnieuw')}
             onPress={() => {
               const actie = laatsteActie.current;
               if (actie) void uitvoeren(actie);
             }}
           >
-            <Text style={styles.foutKnopTekst}>Opnieuw proberen</Text>
+            <Text style={styles.foutKnopTekst}>{t('algemeen.opnieuw')}</Text>
           </Pressable>
         </View>
       ) : null}
 
       {bezig ? (
-        <View style={styles.sluier} accessibilityLabel="Bezig met versturen">
+        <View style={styles.sluier} accessibilityLabel={t('meldflow.versturenLabel')}>
           <ActivityIndicator size="large" color={theme.color.accent} />
-          <Text style={styles.sluierTekst}>Versturen…</Text>
+          <Text style={styles.sluierTekst}>{t('meldflow.versturen')}</Text>
         </View>
       ) : null}
     </View>
@@ -309,16 +310,16 @@ function LocatieStap({
 }) {
   const hint =
     gps.status === 'busy'
-      ? 'GPS zoekt je positie… je kan de kaart ook zelf verslepen.'
+      ? t('meldflow.hintZoekt')
       : gps.status === 'denied'
-        ? 'Geen locatietoegang — versleep de kaart tot de pin op het afval staat.'
+        ? t('meldflow.hintGeweigerd')
         : gps.status === 'unavailable'
-          ? 'GPS niet beschikbaar — versleep de kaart tot de pin op het afval staat.'
+          ? t('meldflow.hintOnbeschikbaar')
           : Platform.OS === 'web'
-            ? 'Controleer de pin: op een computer is GPS vaak onnauwkeurig.'
+            ? t('meldflow.hintWeb')
             : accuracyM !== null
-              ? `GPS gevonden (± ${Math.round(accuracyM)} m). Versleep de kaart als de pin niet klopt.`
-              : 'Versleep de kaart tot de pin op het afval staat.';
+              ? t('meldflow.hintNauwkeurigheid', { m: Math.round(accuracyM) })
+              : t('meldflow.hintVersleep');
 
   return (
     <View style={styles.stap}>
@@ -327,9 +328,9 @@ function LocatieStap({
           fallback={() => (
             <View style={styles.kaartFallback}>
               <Text style={styles.tekst}>
-                De kaart kan hier niet getekend worden. We gebruiken{' '}
-                {gps.status === 'ok' ? 'je GPS-positie' : 'het startpunt van de kaart'} als
-                locatie van de melding.
+                {gps.status === 'ok'
+                  ? t('meldflow.kaartFallbackGps')
+                  : t('meldflow.kaartFallbackStart')}
               </Text>
             </View>
           )}
@@ -346,22 +347,24 @@ function LocatieStap({
         {/* De pin staat vast in het midden; de kaart beweegt eronder. Dat is de
             "versleepbare pin" zonder een tweede aanrakingsmodel op de kaart. */}
         <View pointerEvents="none" style={styles.pinLaag}>
-          <Text style={styles.pin} accessibilityLabel="Pin op de plek van het afval">
+          <Text style={styles.pin} accessibilityLabel={t('meldflow.pinLabel')}>
             📍
           </Text>
         </View>
       </View>
 
       <View style={styles.paneel}>
-        <Text style={styles.titel}>Waar ligt het afval?</Text>
+        <Text style={styles.titel} accessibilityRole="header">
+          {t('meldflow.locatieTitel')}
+        </Text>
         <Text style={styles.tekst}>{hint}</Text>
         <Pressable
           style={styles.primair}
           accessibilityRole="button"
-          accessibilityLabel="Deze plek klopt"
+          accessibilityLabel={t('meldflow.plekKlopt')}
           onPress={onKlaar}
         >
-          <Text style={styles.primairTekst}>Deze plek klopt</Text>
+          <Text style={styles.primairTekst}>{t('meldflow.plekKlopt')}</Text>
         </Pressable>
       </View>
     </View>
@@ -389,8 +392,10 @@ function TypeStap({
 }) {
   return (
     <ScrollView contentContainerStyle={styles.paneelVol}>
-      <Text style={styles.titel}>Hoe groot is het?</Text>
-      <Text style={styles.tekst}>Kies één van de drie — je keuze verstuurt de melding meteen.</Text>
+      <Text style={styles.titel} accessibilityRole="header">
+        {t('meldflow.grootteTitel')}
+      </Text>
+      <Text style={styles.tekst}>{t('meldflow.grootteUitleg')}</Text>
 
       {SIZES.map(({ size, uitleg }) => (
         <Pressable
@@ -410,14 +415,18 @@ function TypeStap({
 
       {foto ? (
         <View style={styles.fotoRij}>
-          <Image source={{ uri: foto.uri }} style={styles.fotoMini} accessibilityLabel="Gekozen foto" />
+          <Image
+            source={{ uri: foto.uri }}
+            style={styles.fotoMini}
+            accessibilityLabel={t('meldflow.fotoGekozen')}
+          />
           <Pressable
             style={styles.secundair}
             accessibilityRole="button"
-            accessibilityLabel="Foto weghalen"
+            accessibilityLabel={t('meldflow.fotoWeghalen')}
             onPress={onVerwijderFoto}
           >
-            <Text style={styles.secundairTekst}>Foto weghalen</Text>
+            <Text style={styles.secundairTekst}>{t('meldflow.fotoWeghalen')}</Text>
           </Pressable>
         </View>
       ) : (
@@ -426,49 +435,46 @@ function TypeStap({
             <Pressable
               style={[styles.secundair, styles.fotoKnop]}
               accessibilityRole="button"
-              accessibilityLabel="Foto nemen met de camera, niet verplicht"
+              accessibilityLabel={t('meldflow.fotoNemenLabel')}
               disabled={fotoBezig}
               onPress={() => onKiesFoto('camera')}
             >
-              <Text style={styles.secundairTekst}>📷 Foto nemen</Text>
+              <Text style={styles.secundairTekst}>{t('meldflow.fotoNemen')}</Text>
             </Pressable>
           ) : null}
           <Pressable
             style={[styles.secundair, styles.fotoKnop]}
             accessibilityRole="button"
-            accessibilityLabel="Foto kiezen uit je bibliotheek, niet verplicht"
+            accessibilityLabel={t('meldflow.fotoKiezenLabel')}
             disabled={fotoBezig}
             onPress={() => onKiesFoto('bibliotheek')}
           >
             <Text style={styles.secundairTekst}>
-              {fotoBezig ? 'Foto verkleinen…' : '🖼️ Foto kiezen'}
+              {fotoBezig ? t('meldflow.fotoVerkleinen') : t('meldflow.fotoKiezen')}
             </Text>
           </Pressable>
         </View>
       )}
-      <Text style={styles.klein}>
-        Een foto is niet verplicht. Ze wordt verkleind en zonder metadata verstuurd, en pas
-        getoond na een automatische controle.
-      </Text>
+      <Text style={styles.klein}>{t('meldflow.fotoUitleg')}</Text>
 
       <TextInput
         style={styles.notitie}
         value={notitie}
         onChangeText={onNotitie}
-        placeholder="Notitie (niet verplicht), bv. 'achter het bankje'"
+        placeholder={t('meldflow.notitiePlaceholder')}
         placeholderTextColor={theme.color.textMuted}
         maxLength={280}
         multiline
-        accessibilityLabel="Notitie bij de melding, niet verplicht"
+        accessibilityLabel={t('meldflow.notitieLabel')}
       />
 
       <Pressable
         style={styles.secundair}
         accessibilityRole="button"
-        accessibilityLabel="Terug naar de locatie"
+        accessibilityLabel={t('meldflow.locatieAanpassenLabel')}
         onPress={onTerug}
       >
-        <Text style={styles.secundairTekst}>Locatie aanpassen</Text>
+        <Text style={styles.secundairTekst}>{t('meldflow.locatieAanpassen')}</Text>
       </Pressable>
     </ScrollView>
   );
@@ -485,10 +491,11 @@ function DuplicaatStap({
 }) {
   return (
     <ScrollView contentContainerStyle={styles.paneelVol}>
-      <Text style={styles.titel}>Hier is al iets gemeld</Text>
+      <Text style={styles.titel} accessibilityRole="header">
+        {t('meldflow.duplicaatTitel')}
+      </Text>
       <Text style={styles.tekst}>
-        Vlak bij je pin {buren.length === 1 ? 'staat al een melding' : 'staan al meldingen'}. Gaat
-        het om hetzelfde afval, bevestig dan — zo blijft de kaart leesbaar.
+        {buren.length === 1 ? t('meldflow.duplicaatTekstEen') : t('meldflow.duplicaatTekstMeer')}
       </Text>
 
       <View style={styles.lijst}>
@@ -498,7 +505,10 @@ function DuplicaatStap({
             <View style={styles.grootteTekst}>
               <Text style={styles.grootteLabel}>{sizeLabelNl(b.size)}</Text>
               <Text style={styles.klein}>
-                {Math.max(1, Math.round(b.distanceM))} m van je pin · {relativeTimeNl(b.createdAt)}
+                {t('meldflow.duplicaatAfstand', {
+                  m: Math.max(1, Math.round(b.distanceM)),
+                  tijd: relativeTimeNl(b.createdAt),
+                })}
               </Text>
             </View>
           </View>
@@ -508,18 +518,18 @@ function DuplicaatStap({
       <Pressable
         style={styles.primair}
         accessibilityRole="button"
-        accessibilityLabel="Het ligt er nog, bevestig de bestaande melding"
+        accessibilityLabel={t('meldflow.bevestigLabel')}
         onPress={onBevestig}
       >
-        <Text style={styles.primairTekst}>Het ligt er nog — bevestig</Text>
+        <Text style={styles.primairTekst}>{t('meldflow.bevestigKnop')}</Text>
       </Pressable>
       <Pressable
         style={styles.secundair}
         accessibilityRole="button"
-        accessibilityLabel="Toch apart melden"
+        accessibilityLabel={t('meldflow.tochMeldenLabel')}
         onPress={onTochMelden}
       >
-        <Text style={styles.secundairTekst}>Dit is iets anders — toch melden</Text>
+        <Text style={styles.secundairTekst}>{t('meldflow.tochMelden')}</Text>
       </Pressable>
     </ScrollView>
   );

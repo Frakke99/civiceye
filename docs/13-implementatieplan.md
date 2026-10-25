@@ -112,15 +112,30 @@ codewerk van betekenis.
 
 ## Sprint 5 — Klaar voor testers
 
-- [ ] i18n-structuur, alle teksten in `nl.json`
-- [ ] Toegankelijkheid: contrast, raakvlakken, screenreaderlabels, 200 % tekst
-- [ ] Web-build naar Vercel (de deelbare test-URL)
+- [x] i18n-structuur, alle teksten in `nl.json`
+- [x] Toegankelijkheid: contrast, raakvlakken, screenreaderlabels, 200 % tekst
+- [x] Web-build deelbaar via één URL *(GitHub Pages-workflow i.p.v. Vercel —
+      zie [QUICKSTART](../QUICKSTART.md); 👤 Pages aanzetten + variabelen)*
 - [ ] EAS-buildprofielen; eerste TestFlight- en Play-internal-build
-- [ ] Privacyverklaring en voorwaarden, in de app bereikbaar
-- [ ] Store-listings, screenshots, privacylabels
+      *(profielen staan in `apps/mobile/eas.json`; 👤 de builds zelf vragen een
+      Expo-account en de store-accounts)*
+- [x] Privacyverklaring en voorwaarden, in de app bereikbaar
+- [x] Store-listings, screenshots, privacylabels *(teksten en labels klaar in
+      [14](14-store-voorbereiding.md); 👤 invoeren in de stores)*
 
 **Klaar wanneer:** je één link kan sturen naar vijf mensen met verschillende
 toestellen, en zij kunnen melden zonder jouw uitleg.
+
+**Hoe het gebouwd is:** alle vaste UI-teksten staan in
+`apps/mobile/src/i18n/nl.json` met een getypeerde `t()`-helper (een tikfout in
+een sleutel is een compile-fout); `en.json` komt daar later gewoon naast. De
+teksten in `packages/shared` (foutcodes, redenen, statussen) blijven dáár —
+de console deelt ze en het zijn al dictionaries per code. De
+privacyverklaring is een eigen scherm, bereikbaar vanuit Instellingen, met
+één bewuste invulplek: het contactadres. De toegankelijkheidspas bracht de
+waarschuwingskleur boven de 4,5:1-contrastgrens, zette header-rollen op de
+scherm titels en live-regions op fout- en wachtrijbalken; raakvlakken ≥ 44 pt
+en scrollende formulieren stonden er al.
 
 ## Sprint 6 — Roll-outklaar
 

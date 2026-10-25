@@ -15,7 +15,9 @@ export const theme = {
     accent: '#1a7f4b',
     accentText: '#ffffff',
     danger: '#c0392b',
-    warning: '#b26a00',
+    // 4,9:1 op de ambergele wachtbalk (#fff7e6) én op bgElevated; de vorige
+    // (#b26a00) bleef op beide onder de 4,5:1-grens uit docs/05.
+    warning: '#9a5f00',
   },
   space: (n: number) => n * 4,
   radius: { s: 8, m: 12, l: 20, pill: 999 },

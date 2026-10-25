@@ -9,6 +9,7 @@ import { MapFallback } from '@/map/MapFallback';
 import { totalReports } from '@/map/markers';
 import { useMapReports } from '@/api/useMapReports';
 import { useOutbox } from '@/outbox/useOutbox';
+import { t } from '@/i18n';
 import type { Viewport } from '@/map/types';
 import { theme } from '@/ui/theme';
 
@@ -62,14 +63,17 @@ export default function KaartScherm() {
       <View style={[styles.balk, { top: insets.top + theme.space(2) }]}>
         <Text style={styles.balkTekst}>
           {zichtbaar.length === 0 && !isFetching
-            ? 'Geen meldingen in beeld'
-            : `${totalReports(zichtbaar)} meldingen`}
+            ? t('kaart.geenMeldingen')
+            : t('kaart.aantalMeldingen', { n: totalReports(zichtbaar) })}
         </Text>
         {isFetching ? <ActivityIndicator size="small" color={theme.color.accent} /> : null}
       </View>
 
       {fout ? (
-        <View style={[styles.foutBalk, { bottom: insets.bottom + theme.space(20) }]}>
+        <View
+          style={[styles.foutBalk, { bottom: insets.bottom + theme.space(20) }]}
+          accessibilityLiveRegion="polite"
+        >
           <Text style={styles.foutTekst}>{errorText(fout.code, fout.detail)}</Text>
         </View>
       ) : null}
@@ -78,11 +82,14 @@ export default function KaartScherm() {
           dataverlies, ook als de data er nog is. */}
       {outbox.items.length > 0 ? (
         // Boven de foutbalk als die er ook staat, anders op dezelfde plek.
-        <View style={[styles.wachtBalk, { bottom: insets.bottom + theme.space(fout ? 32 : 20) }]}>
+        <View
+          style={[styles.wachtBalk, { bottom: insets.bottom + theme.space(fout ? 32 : 20) }]}
+          accessibilityLiveRegion="polite"
+        >
           <Text style={styles.wachtTekst}>
             {outbox.items.length === 1
-              ? '1 melding wacht op verbinding'
-              : `${outbox.items.length} meldingen wachten op verbinding`}
+              ? t('kaart.wachtrijEen')
+              : t('kaart.wachtrijMeer', { n: outbox.items.length })}
           </Text>
         </View>
       ) : null}
@@ -90,11 +97,11 @@ export default function KaartScherm() {
       <Pressable
         style={[styles.meldKnop, { bottom: insets.bottom + theme.space(6) }]}
         accessibilityRole="button"
-        accessibilityLabel="Afval melden"
-        accessibilityHint="Opent de meldflow: locatie kiezen en grootte aantikken"
+        accessibilityLabel={t('kaart.meldKnop')}
+        accessibilityHint={t('kaart.meldKnopHint')}
         onPress={() => router.push('/report/nieuw')}
       >
-        <Text style={styles.meldKnopTekst}>Afval melden</Text>
+        <Text style={styles.meldKnopTekst}>{t('kaart.meldKnop')}</Text>
       </Pressable>
     </View>
   );

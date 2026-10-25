@@ -43,8 +43,16 @@ Windows (PowerShell):
 ```powershell
 winget install OpenJS.NodeJS.LTS
 winget install Git.Git
+
+# PowerShell blokkeert standaard alle scripts, en npm/pnpm zíjn scripts.
+# Dit versoepelt dat alleen voor jouw account (geen admin nodig):
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
 npm install -g pnpm@10
 ```
+
+Krijg je toch "running scripts is disabled on this system", dan is die
+`Set-ExecutionPolicy`-regel nog niet gedraaid — draai hem en probeer opnieuw.
 
 macOS (met Homebrew):
 
@@ -90,25 +98,46 @@ uit dit document uitvoert. Controleer dat met `pwd` (macOS/Linux) of `cd`
 
 ```bash
 pnpm install     # eenmalig, haalt de afhankelijkheden op (~2 min)
-pnpm e2e:build   # bouwt de web-app (~1 min)
-pnpm demo        # start de app met verzonnen meldingen
+pnpm demo:lan    # bouwt de web-app (~1 min) en start de demo
 ```
 
-Het laatste commando print het adres voor deze computer. Open het in je
-browser: kaart, meldflow, offline wachtrij — alles werkt tegen een nagemaakt
-backend. Stoppen doe je met Ctrl-C.
+Het commando print de adressen waarop de demo draait: één voor deze computer
+en één of meer voor je telefoon (zelfde wifi of hotspot). Open zo'n adres in
+je browser: kaart met echte straten, meldflow, offline wachtrij — alles werkt
+tegen een nagemaakt backend. Stoppen doe je met Ctrl-C.
 
-**Ook op je telefoon meekijken (zelfde wifi)?** Gebruik dan:
+Wat je op het ene toestel meldt, verschijnt op het andere na een
+kaartbeweging: de app stuurt zijn dataverzoeken naar het adres waarmee je de
+pagina opende. Drie dingen om te weten:
 
-```bash
-pnpm demo:lan    # bouwt met het wifi-adres van deze machine én start de demo
-```
+- **Meerdere telefoon-adressen?** Neem het eerste; adressen die als
+  *virtueel* gemarkeerd staan (WSL, Hyper-V, VPN) kan je telefoon nooit
+  bereiken.
+- GPS werkt op een telefoon alleen via https (dus hier niet) — de pin
+  verslepen werkt wél.
+- De verzonnen data verdwijnt zodra je de demo stopt.
 
-De gewone build bakt `127.0.0.1` in als API-adres, en dat is op je telefoon de
-telefoon zelf — vandaar de aparte variant. Wat je op het ene toestel meldt,
-verschijnt op het andere na een kaartbeweging. Nog twee beperkingen van deze
-weg: GPS werkt op een telefoon alleen via https (dus hier niet — de pin
-verslepen werkt wél), en de verzonnen data verdwijnt zodra je de demo stopt.
+(`pnpm demo` zonder `:lan` serveert een bestaande build opnieuw, bv. de
+testbuild van `pnpm e2e:build` — die heeft bewust geen straatkaart.)
+
+> **Telefoon krijgt "site niet bereikbaar"?** Dan blokkeert de Windows
+> Firewall inkomende verbindingen naar Node. Twee dingen controleren:
+>
+> 1. Bij de eerste start toont Windows een venster "Windows Defender Firewall
+>    heeft enkele functies van Node.js geblokkeerd" — vink daar
+>    **Privénetwerken** aan en klik *Toegang toestaan*. Weggeklikt? Herstel het
+>    met één regel in een **PowerShell als administrator**:
+>
+>    ```powershell
+>    New-NetFirewallRule -DisplayName "CivicEye demo" -Direction Inbound -Protocol TCP -LocalPort 8810,8811 -Action Allow
+>    ```
+>
+> 2. Je wifi moet op je pc als **Privénetwerk** staan: Instellingen → Netwerk
+>    en internet → Wi-Fi → jouw netwerk → Netwerkprofieltype → Privé. Op
+>    "Openbaar" blokkeert Windows dit soort verkeer sowieso.
+>
+> Helpt dat niet: zet een eventuele VPN op je telefoon uit, en weet dat
+> gasten-wifi vaak "isolatie" heeft waardoor toestellen elkaar nooit zien.
 
 Je hebt hier **geen Supabase-project voor nodig**. Voor een echte demo met
 blijvende data en een deelbare link: laag 2 en daarna
@@ -266,8 +295,10 @@ cp apps/mobile/.env.example apps/mobile/.env
 # vul EXPO_PUBLIC_SUPABASE_URL en EXPO_PUBLIC_SUPABASE_ANON_KEY in
 ```
 
-De MapTiler-key is optioneel: zonder key krijg je je meldingen op een effen
-ondergrond in plaats van op een kaart. Alles werkt, je ziet alleen geen straten.
+De MapTiler-key is optioneel: zonder key gebruikt de app OpenFreeMap — een
+gratis, keyloze straatkaart op OpenStreetMap-data. Je ziet dus gewoon straten.
+Alleen met `EXPO_PUBLIC_BASEMAP=off` (zo draaien de tests, die geen netwerk
+mogen gebruiken) valt de kaart terug op een effen ondergrond.
 
 ### In de browser (snelste weg, werkt op elk toestel)
 
@@ -345,8 +376,9 @@ Eenmalig, in de GitHub-repo (~5 minuten):
    elke push naar `main` automatisch opnieuw.
 
 De app staat dan op `https://<owner>.github.io/<repo>/` — dat is de link die
-je deelt. De MapTiler-key is voor een demo sterk aan te raden: mét key zien
-testers straten en pleinen, zonder key een effen ondergrond.
+je deelt. Zonder MapTiler-key gebruikt de app OpenFreeMap: ook echte straten,
+gratis en zonder registratie, maar als publieke dienst zonder garanties. Voor
+de echte roll-out blijft MapTiler (met budgetalert) de keuze uit docs/12.
 
 Foto's meesturen werkt pas wanneer ook de twee Edge Functions gedeployed zijn
 (zie [supabase/functions/README.md](supabase/functions/README.md)); zonder die
@@ -383,6 +415,6 @@ Zie [docs/13-implementatieplan.md](docs/13-implementatieplan.md).
 | App toont "Kaart niet beschikbaar" op een toestel | je draait in Expo Go | maak een development build (`npx expo run:android`) |
 | Directe link naar `/report/<id>` geeft 404 op je host | SPA-rewrite ontbreekt | alle paden naar `index.html` laten wijzen |
 | `Ontbrekende configuratie: EXPO_PUBLIC_SUPABASE_URL` | geen `.env` in `apps/mobile` | `cp apps/mobile/.env.example apps/mobile/.env` en invullen |
-| Kaart blijft grijs, markers wel zichtbaar | geen MapTiler-key | verwacht gedrag; vul `EXPO_PUBLIC_MAPTILER_KEY` in |
+| Kaart blijft grijs, markers wel zichtbaar | basiskaart staat uit (`EXPO_PUBLIC_BASEMAP=off`), of geen internet voor de kaarttegels | laat de variabele weg voor de OpenFreeMap-straatkaart |
 | Kaart is leeg terwijl de balk "N meldingen" toont | de maplibre-worker ontbreekt in de build | `pnpm prepare:web` en opnieuw bouwen; gebruik `pnpm web:build` in plaats van `expo export` |
-| Clusters tonen geen getal | zonder MapTiler-key is er geen font | verwacht gedrag; bollen verschillen wel in grootte |
+| Clusters tonen geen getal | met `EXPO_PUBLIC_BASEMAP=off` is er geen font | verwacht gedrag in testbuilds; bollen verschillen wel in grootte |

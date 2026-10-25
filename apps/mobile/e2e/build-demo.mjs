@@ -9,20 +9,21 @@
  *   pnpm demo:lan
  */
 import { execSync } from 'node:child_process';
-import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { lanAdressen } from './lan.mjs';
 
-const lan = Object.values(os.networkInterfaces())
-  .flat()
-  .filter((n) => n && n.family === 'IPv4' && !n.internal)
-  .map((n) => n.address)[0];
+const kandidaten = lanAdressen();
+const lan = kandidaten[0]?.adres;
 
 if (!lan) {
   console.error('Geen LAN-adres gevonden. Zit deze machine wel op een netwerk?');
   process.exit(1);
 }
 
-const HIER = path.dirname(new URL(import.meta.url).pathname);
+// fileURLToPath en niet .pathname: dat laatste geeft op Windows '/C:/...'
+// en dan zoekt Node alles in het onbestaande 'C:\\C:\\...'.
+const HIER = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HIER, '..', '..', '..');
 
 console.log(`\nWeb-app bouwen met de API op http://${lan}:8811 …\n`);
@@ -36,5 +37,8 @@ execSync('pnpm exec expo export --platform web --output-dir dist --clear', {
     EXPO_PUBLIC_SUPABASE_ANON_KEY: 'demo-anon-key',
     EXPO_PUBLIC_ENV: 'dev',
     EXPO_PUBLIC_MAPTILER_KEY: process.env.EXPO_PUBLIC_MAPTILER_KEY ?? '',
+    // Standaard de echte straatkaart (OpenFreeMap); 'off' voor een demo
+    // zonder internet.
+    EXPO_PUBLIC_BASEMAP: process.env.EXPO_PUBLIC_BASEMAP ?? '',
   },
 });

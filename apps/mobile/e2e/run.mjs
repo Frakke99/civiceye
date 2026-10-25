@@ -16,10 +16,13 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { start } from './mock-supabase.mjs';
 import { serveStatic } from './static-server.mjs';
 
-const HIER = path.dirname(new URL(import.meta.url).pathname);
+// fileURLToPath en niet .pathname: dat laatste geeft op Windows '/C:/...'
+// en dan zoekt Node alles in het onbestaande 'C:\\C:\\...'.
+const HIER = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.resolve(HIER, '..', 'dist');
 // Statische server met SPA-rewrite (zie static-server.mjs).
 const web = serveStatic(DIST, 8810);
@@ -171,6 +174,14 @@ check('instellingen tonen de omgeving en het backend', inst.includes('127.0.0.1:
 check('instellingen tonen de sessiestatus', /Anonieme sessie/.test(inst));
 check('instellingen melden dat er geen kaartkey is', inst.includes('geen key'));
 
+// --- 9b. privacyverklaring is in de app bereikbaar (sprint 5) ---
+await page.getByRole('button', { name: 'Privacyverklaring en voorwaarden' }).click();
+await page.waitForTimeout(800);
+const privacy = (await page.textContent('body')) ?? '';
+check('privacyverklaring opent vanuit instellingen',
+  privacy.includes('Je bent anoniem') && privacy.includes('Vragen of een foto laten weghalen'),
+  privacy.slice(0, 60).trim());
+
 // --- 10. de meldflow: locatie → grootte → duplicaatvraag → posten ---
 huidigePagina = '/report/nieuw';
 await page.goto('http://127.0.0.1:8810/report/nieuw', { waitUntil: 'domcontentloaded' });
@@ -272,5 +283,5 @@ check('geen onafgehandelde JS-fouten in de hele run', pageErrors.length === 0,
 
 await browser.close();
 web.close(); api.server.close();
-console.log(mislukt === 0 ? '\n✓ sprint 1 t/m 4 werken end-to-end' : `\n✗ ${mislukt} check(s) gefaald`);
+console.log(mislukt === 0 ? '\n✓ sprint 1 t/m 5 werken end-to-end' : `\n✗ ${mislukt} check(s) gefaald`);
 process.exit(mislukt === 0 ? 0 : 1);
