@@ -9,14 +9,12 @@
  *   pnpm demo:lan
  */
 import { execSync } from 'node:child_process';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { lanAdressen } from './lan.mjs';
 
-const lan = Object.values(os.networkInterfaces())
-  .flat()
-  .filter((n) => n && n.family === 'IPv4' && !n.internal)
-  .map((n) => n.address)[0];
+const kandidaten = lanAdressen();
+const lan = kandidaten[0]?.adres;
 
 if (!lan) {
   console.error('Geen LAN-adres gevonden. Zit deze machine wel op een netwerk?');

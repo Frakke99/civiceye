@@ -7,12 +7,12 @@
  *
  * De meldingen zijn verzonnen; het gaat om de app, niet om de data.
  */
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { serveStatic } from './static-server.mjs';
 import { start } from './mock-supabase.mjs';
+import { lanAdressen } from './lan.mjs';
 
 // fileURLToPath en niet .pathname: dat laatste geeft op Windows '/C:/...'
 // en dan zoekt Node alles in het onbestaande 'C:\\C:\\...'.
@@ -30,19 +30,22 @@ serveStatic(DIST, WEB_POORT);
 start(API_POORT);
 
 // Het adres in het lokale netwerk, zodat je het op je telefoon kan openen.
-const adressen = Object.values(os.networkInterfaces())
-  .flat()
-  .filter((n) => n && n.family === 'IPv4' && !n.internal)
-  .map((n) => n.address);
+// Echte adapters eerst; virtuele (WSL, Hyper-V, VPN) zijn voor een telefoon
+// onbereikbaar en staan er alleen volledigheidshalve bij.
+const adressen = lanAdressen();
 
 console.log('\n  CivicEye — demo met nagemaakt backend\n');
 console.log(`  op deze machine   http://127.0.0.1:${WEB_POORT}`);
-for (const a of adressen) {
-  console.log(`  op je telefoon    http://${a}:${WEB_POORT}   (zelfde wifi)`);
+for (const { adres, virtueel, naam } of adressen) {
+  console.log(
+    virtueel
+      ? `  (virtueel: ${naam} — werkt niet vanaf je telefoon)   http://${adres}:${WEB_POORT}`
+      : `  op je telefoon    http://${adres}:${WEB_POORT}   (zelfde wifi/hotspot)`,
+  );
 }
 console.log(
-  '\n  Telefoon erbij? Bouw dan met `pnpm demo:lan` in plaats van `pnpm e2e:build`:\n' +
-    '  die bakt het wifi-adres van deze machine in, anders zoekt je telefoon de\n' +
-    '  data op zichzelf (127.0.0.1) en blijft de kaart daar leeg.\n',
+  '\n  De app stuurt zijn dataverzoeken naar het adres waarmee je de pagina\n' +
+    '  opent, dus elk bereikbaar adres hierboven werkt. Laadt het niet op je\n' +
+    '  telefoon: controleer de Windows Firewall (zie QUICKSTART.md).\n',
 );
 console.log('  De meldingen zijn verzonnen. Stop met Ctrl-C.\n');

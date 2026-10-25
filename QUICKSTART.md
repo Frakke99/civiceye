@@ -98,26 +98,27 @@ uit dit document uitvoert. Controleer dat met `pwd` (macOS/Linux) of `cd`
 
 ```bash
 pnpm install     # eenmalig, haalt de afhankelijkheden op (~2 min)
-pnpm e2e:build   # bouwt de web-app (~1 min)
-pnpm demo        # start de app met verzonnen meldingen
+pnpm demo:lan    # bouwt de web-app (~1 min) en start de demo
 ```
 
-Het laatste commando print het adres voor deze computer. Open het in je
-browser: kaart, meldflow, offline wachtrij — alles werkt tegen een nagemaakt
-backend. Stoppen doe je met Ctrl-C.
+Het commando print de adressen waarop de demo draait: één voor deze computer
+en één of meer voor je telefoon (zelfde wifi of hotspot). Open zo'n adres in
+je browser: kaart met echte straten, meldflow, offline wachtrij — alles werkt
+tegen een nagemaakt backend. Stoppen doe je met Ctrl-C.
 
-**Ook op je telefoon meekijken (zelfde wifi)?** Gebruik dan:
+Wat je op het ene toestel meldt, verschijnt op het andere na een
+kaartbeweging: de app stuurt zijn dataverzoeken naar het adres waarmee je de
+pagina opende. Drie dingen om te weten:
 
-```bash
-pnpm demo:lan    # bouwt met het wifi-adres van deze machine én start de demo
-```
+- **Meerdere telefoon-adressen?** Neem het eerste; adressen die als
+  *virtueel* gemarkeerd staan (WSL, Hyper-V, VPN) kan je telefoon nooit
+  bereiken.
+- GPS werkt op een telefoon alleen via https (dus hier niet) — de pin
+  verslepen werkt wél.
+- De verzonnen data verdwijnt zodra je de demo stopt.
 
-De gewone build bakt `127.0.0.1` in als API-adres; open je de demo via het
-wifi-adres, dan stuurt de app de dataverzoeken automatisch naar datzelfde
-adres. Wat je op het ene toestel meldt, verschijnt op het andere na een
-kaartbeweging. Nog twee beperkingen van deze weg: GPS werkt op een telefoon
-alleen via https (dus hier niet — de pin verslepen werkt wél), en de verzonnen
-data verdwijnt zodra je de demo stopt.
+(`pnpm demo` zonder `:lan` serveert een bestaande build opnieuw, bv. de
+testbuild van `pnpm e2e:build` — die heeft bewust geen straatkaart.)
 
 > **Telefoon krijgt "site niet bereikbaar"?** Dan blokkeert de Windows
 > Firewall inkomende verbindingen naar Node. Twee dingen controleren:
