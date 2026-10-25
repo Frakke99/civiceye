@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { env, hasMapTiler } from '@/config/env';
 import { currentUserId } from '@/auth/session';
+import { t } from '@/i18n';
 import { theme } from '@/ui/theme';
 
 /**
@@ -11,6 +13,7 @@ import { theme } from '@/ui/theme';
  * de anonieme sessie er is.
  */
 export default function Instellingen() {
+  const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -18,17 +21,27 @@ export default function Instellingen() {
   }, []);
 
   const rijen: [string, string][] = [
-    ['Omgeving', env.appEnv],
-    ['Supabase', env.supabaseUrl.replace(/^https?:\/\//, '')],
-    ['Kaartlaag', hasMapTiler ? 'MapTiler' : 'geen key — effen ondergrond'],
-    ['Platform', `${Platform.OS} ${Platform.Version ?? ''}`.trim()],
-    ['App-versie', Constants.expoConfig?.version ?? '?'],
-    ['Anonieme sessie', userId ? `actief (${userId.slice(0, 8)}…)` : 'geen — melden lukt niet'],
+    [t('instellingen.omgeving'), env.appEnv],
+    [t('instellingen.supabase'), env.supabaseUrl.replace(/^https?:\/\//, '')],
+    [
+      t('instellingen.kaartlaag'),
+      hasMapTiler ? t('instellingen.maptiler') : t('instellingen.geenKey'),
+    ],
+    [t('instellingen.platform'), `${Platform.OS} ${Platform.Version ?? ''}`.trim()],
+    [t('instellingen.appVersie'), Constants.expoConfig?.version ?? '?'],
+    [
+      t('instellingen.sessie'),
+      userId
+        ? t('instellingen.sessieActief', { id: userId.slice(0, 8) })
+        : t('instellingen.sessieGeen'),
+    ],
   ];
 
   return (
     <ScrollView contentContainerStyle={styles.root}>
-      <Text style={styles.titel}>Instellingen</Text>
+      <Text style={styles.titel} accessibilityRole="header">
+        {t('instellingen.titel')}
+      </Text>
 
       <View style={styles.kaart}>
         {rijen.map(([label, waarde]) => (
@@ -39,15 +52,20 @@ export default function Instellingen() {
         ))}
       </View>
 
-      <Text style={styles.kopje}>Privacy</Text>
-      <Text style={styles.tekst}>
-        Meldingen zijn publiek zichtbaar op hun exacte locatie. Wie meldt, blijft anoniem:
-        je naam of e-mailadres wordt niet gevraagd en staat nergens bij een melding.
+      <Text style={styles.kopje} accessibilityRole="header">
+        {t('instellingen.privacyKop')}
       </Text>
-      <Text style={styles.klein}>
-        Je meldingen horen bij dit toestel. Verwijder je de app, dan verlies je het
-        overzicht van je eigen meldingen — de meldingen zelf blijven op de kaart staan.
-      </Text>
+      <Text style={styles.tekst}>{t('instellingen.privacyTekst')}</Text>
+      <Text style={styles.klein}>{t('instellingen.privacyKlein')}</Text>
+
+      <Pressable
+        style={styles.privacyKnop}
+        accessibilityRole="button"
+        accessibilityLabel={t('instellingen.privacyLink')}
+        onPress={() => router.push('/privacy')}
+      >
+        <Text style={styles.privacyKnopTekst}>{t('instellingen.privacyLink')}</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -75,4 +93,14 @@ const styles = StyleSheet.create({
   kopje: { fontSize: 16, fontWeight: '700', color: theme.color.text, marginTop: theme.space(4) },
   tekst: { color: theme.color.textMuted, lineHeight: 22 },
   klein: { color: theme.color.textMuted, fontSize: 12, lineHeight: 18 },
+  privacyKnop: {
+    minHeight: theme.minTouch,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: theme.radius.pill,
+    borderWidth: 1,
+    borderColor: theme.color.line,
+    marginTop: theme.space(2),
+  },
+  privacyKnopTekst: { color: theme.color.text, fontWeight: '600' },
 });

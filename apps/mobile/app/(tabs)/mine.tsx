@@ -15,6 +15,7 @@ import { currentUserId } from '@/auth/session';
 import { relativeTimeNl, sizeLabelNl, SIZE_ICON, KIND_ICON } from '@/map/markers';
 import { verwijderMislukt } from '@/outbox';
 import { useOutbox } from '@/outbox/useOutbox';
+import { t } from '@/i18n';
 import { theme } from '@/ui/theme';
 
 /**
@@ -53,12 +54,11 @@ export default function MijnMeldingen() {
   if (userId === null) {
     return (
       <View style={styles.root}>
-        <Text style={styles.titel}>Mijn meldingen</Text>
-        <WachtrijSectie outbox={outbox} />
-        <Text style={styles.tekst}>
-          Er is nog geen sessie op dit toestel. Zodra je verbinding hebt en je eerste melding
-          maakt, verschijnen je meldingen hier.
+        <Text style={styles.titel} accessibilityRole="header">
+          {t('mijn.titel')}
         </Text>
+        <WachtrijSectie outbox={outbox} />
+        <Text style={styles.tekst}>{t('mijn.geenSessie')}</Text>
       </View>
     );
   }
@@ -67,9 +67,13 @@ export default function MijnMeldingen() {
     const fout = parseApiError(error);
     return (
       <View style={styles.root}>
-        <Text style={styles.titel}>Mijn meldingen</Text>
+        <Text style={styles.titel} accessibilityRole="header">
+          {t('mijn.titel')}
+        </Text>
         <WachtrijSectie outbox={outbox} />
-        <Text style={styles.tekst}>{errorText(fout.code, fout.detail)}</Text>
+        <Text style={styles.tekst} accessibilityLiveRegion="polite">
+          {errorText(fout.code, fout.detail)}
+        </Text>
       </View>
     );
   }
@@ -78,13 +82,12 @@ export default function MijnMeldingen() {
 
   return (
     <View style={styles.root}>
-      <Text style={styles.titel}>Mijn meldingen</Text>
+      <Text style={styles.titel} accessibilityRole="header">
+        {t('mijn.titel')}
+      </Text>
       <WachtrijSectie outbox={outbox} />
       {meldingen.length === 0 ? (
-        <Text style={styles.tekst}>
-          Nog geen meldingen. Tik op de kaart op “Afval melden” — je meldingen verschijnen
-          hier, ook wanneer ze nog nagekeken worden.
-        </Text>
+        <Text style={styles.tekst}>{t('mijn.leeg')}</Text>
       ) : (
         <FlatList
           data={meldingen}
@@ -113,10 +116,12 @@ function WachtrijSectie({ outbox }: { outbox: ReturnType<typeof useOutbox> }) {
             <Text style={styles.label}>{sizeLabelNl(item.payload.size)}</Text>
             <Text style={styles.klein}>
               {relativeTimeNl(new Date(item.createdAt).toISOString())}
-              {item.photoUri || item.photoPath ? ' · met foto' : ''}
+              {item.photoUri || item.photoPath ? ` · ${t('algemeen.metFoto')}` : ''}
             </Text>
           </View>
-          <Text style={[styles.status, { color: theme.color.warning }]}>wacht op verbinding</Text>
+          <Text style={[styles.status, { color: theme.color.warning }]}>
+            {t('mijn.wachtOpVerbinding')}
+          </Text>
         </View>
       ))}
       {outbox.mislukt.map((m) => (
@@ -124,15 +129,17 @@ function WachtrijSectie({ outbox }: { outbox: ReturnType<typeof useOutbox> }) {
           key={m.clientRef}
           style={styles.rij}
           accessibilityRole="button"
-          accessibilityLabel={`Mislukte melding: ${errorText(m.code)}. Tik om weg te halen.`}
+          accessibilityLabel={t('mijn.misluktLabel', { reden: errorText(m.code) })}
           onPress={() => verwijderMislukt(m.clientRef)}
         >
           <Text style={styles.icoon}>⚠️</Text>
           <View style={styles.rijTekst}>
-            <Text style={styles.label}>Niet gelukt</Text>
+            <Text style={styles.label}>{t('mijn.nietGelukt')}</Text>
             <Text style={styles.klein}>{errorText(m.code)}</Text>
           </View>
-          <Text style={[styles.status, { color: theme.color.danger }]}>tik om weg te halen</Text>
+          <Text style={[styles.status, { color: theme.color.danger }]}>
+            {t('mijn.tikWeghalen')}
+          </Text>
         </Pressable>
       ))}
     </View>
@@ -142,13 +149,13 @@ function WachtrijSectie({ outbox }: { outbox: ReturnType<typeof useOutbox> }) {
 function statusLabelNl(status: ReportStatus): { tekst: string; kleur: string } {
   switch (status) {
     case 'published':
-      return { tekst: 'op de kaart', kleur: theme.color.accent };
+      return { tekst: t('mijn.statusPublished'), kleur: theme.color.accent };
     case 'quarantined':
-      return { tekst: 'wordt nagekeken', kleur: theme.color.warning };
+      return { tekst: t('mijn.statusQuarantined'), kleur: theme.color.warning };
     case 'cleaned':
-      return { tekst: 'opgeruimd', kleur: theme.color.textMuted };
+      return { tekst: t('mijn.statusCleaned'), kleur: theme.color.textMuted };
     case 'removed':
-      return { tekst: 'verwijderd', kleur: theme.color.textMuted };
+      return { tekst: t('mijn.statusRemoved'), kleur: theme.color.textMuted };
   }
 }
 

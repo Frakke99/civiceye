@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ensureSession } from '@/auth/session';
 import { startOutbox } from '@/outbox';
+import { t } from '@/i18n';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,11 +38,15 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="report/[id]"
-            options={{ presentation: 'modal', headerShown: true, title: 'Melding' }}
+            options={{ presentation: 'modal', headerShown: true, title: t('titel.melding') }}
           />
           <Stack.Screen
             name="report/nieuw"
-            options={{ presentation: 'modal', headerShown: true, title: 'Afval melden' }}
+            options={{ presentation: 'modal', headerShown: true, title: t('titel.afvalMelden') }}
+          />
+          <Stack.Screen
+            name="privacy"
+            options={{ presentation: 'modal', headerShown: true, title: t('titel.privacy') }}
           />
         </Stack>
       </SafeAreaProvider>

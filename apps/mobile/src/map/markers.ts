@@ -4,6 +4,7 @@
  * meldingen, en dat wil je in een test kunnen aantonen (apps/mobile/test).
  */
 import type { LitterSize, MapMarker, ReportKind } from '@civiceye/shared';
+import { t } from '@/i18n';
 
 /** De drie symbolen uit de meldflow. */
 export const SIZE_ICON: Record<LitterSize, string> = {
@@ -68,13 +69,13 @@ export function markerLabel(marker: MapMarker): string {
 export function sizeLabelNl(size: LitterSize | null): string {
   switch (size) {
     case 'piece':
-      return 'Papiertje';
+      return t('grootte.piece');
     case 'bag':
-      return 'Afvalzak';
+      return t('grootte.bag');
     case 'heap':
-      return 'Afvalhoop';
+      return t('grootte.heap');
     default:
-      return 'Afval';
+      return t('grootte.onbekend');
   }
 }
 
@@ -83,15 +84,15 @@ export function relativeTimeNl(iso: string, nu: Date = new Date()): string {
   const dan = new Date(iso).getTime();
   if (!Number.isFinite(dan)) return '';
   const seconden = Math.max(0, Math.round((nu.getTime() - dan) / 1000));
-  if (seconden < 60) return 'net gemeld';
+  if (seconden < 60) return t('tijd.net');
   const minuten = Math.round(seconden / 60);
-  if (minuten < 60) return `${minuten} min geleden`;
+  if (minuten < 60) return t('tijd.minuten', { n: minuten });
   const uren = Math.round(minuten / 60);
-  if (uren < 24) return uren === 1 ? '1 uur geleden' : `${uren} uur geleden`;
+  if (uren < 24) return uren === 1 ? t('tijd.uur') : t('tijd.uren', { n: uren });
   const dagen = Math.round(uren / 24);
-  if (dagen < 30) return dagen === 1 ? 'gisteren' : `${dagen} dagen geleden`;
+  if (dagen < 30) return dagen === 1 ? t('tijd.gisteren') : t('tijd.dagen', { n: dagen });
   const maanden = Math.max(1, Math.round(dagen / 30));
-  return maanden === 1 ? '1 maand geleden' : `${maanden} maanden geleden`;
+  return maanden === 1 ? t('tijd.maand') : t('tijd.maanden', { n: maanden });
 }
 
 export interface MarkerFeature {

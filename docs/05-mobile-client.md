@@ -5,7 +5,7 @@ Zie [ADR 0001](adr/0001-client-platform-expo.md) voor de afweging.
 
 ## Repostructuur
 
-Wat er nu staat (sprint 1 + 2 + 3), met een ✅ voor wat gebouwd is:
+Wat er nu staat (sprint 1 t/m 5), met een ✅ voor wat gebouwd is:
 
 ```
 apps/mobile/            Expo app (iOS, Android, web)          ✅
@@ -17,6 +17,7 @@ apps/mobile/            Expo app (iOS, Android, web)          ✅
     report/
       [id].tsx            detail van een melding              ✅
       nieuw.tsx           meldflow: locatie → type → posten   ✅
+    privacy.tsx           privacyverklaring en voorwaarden    ✅
   src/
     api/                supabase-client, RPC's, query-hooks   ✅
     auth/               anonieme sessie                       ✅
@@ -26,7 +27,7 @@ apps/mobile/            Expo app (iOS, Android, web)          ✅
     outbox/             offline wachtrij (SQLite / web)       ✅
     config/             omgevingsvariabelen                   ✅
     ui/                 thema (kleuren, maten, raakvlakken)   ✅
-    i18n/               nl.json, en.json                      (sprint 5)
+    i18n/               nl.json + getypeerde t()-helper       ✅
     telemetry/          Sentry + PostHog                       (open: vraagt account)
   e2e/                  browsertest tegen een nagemaakt backend ✅
   test/                 unittests op pure logica              ✅

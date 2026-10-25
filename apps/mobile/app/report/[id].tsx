@@ -22,6 +22,7 @@ import {
 import { fetchReportDetails, flagReport, photoUrl } from '@/api/reports';
 import { ensureSession } from '@/auth/session';
 import { relativeTimeNl, sizeLabelNl } from '@/map/markers';
+import { t } from '@/i18n';
 import { env } from '@/config/env';
 import { theme } from '@/ui/theme';
 
@@ -61,7 +62,9 @@ function MeldingInhoud({ id }: { id: string }) {
 
   return (
     <ScrollView contentContainerStyle={styles.root}>
-      <Text style={styles.titel}>{sizeLabelNl(data.size)}</Text>
+      <Text style={styles.titel} accessibilityRole="header">
+        {sizeLabelNl(data.size)}
+      </Text>
       <Text style={styles.tekst}>{relativeTimeNl(data.createdAt)}</Text>
 
       {foto ? (
@@ -69,12 +72,12 @@ function MeldingInhoud({ id }: { id: string }) {
           source={{ uri: photoUrl(env.supabaseUrl, foto.bucket, foto.path) }}
           style={styles.foto}
           resizeMode="cover"
-          accessibilityLabel="Foto van de melding"
+          accessibilityLabel={t('detail.fotoLabel')}
         />
       ) : (
         <View style={[styles.foto, styles.geenFoto]}>
           <Text style={styles.klein}>
-            {data.photos.length > 0 ? 'Foto wordt nog gecontroleerd' : 'Geen foto'}
+            {data.photos.length > 0 ? t('detail.fotoInControle') : t('detail.geenFoto')}
           </Text>
         </View>
       )}
@@ -82,29 +85,33 @@ function MeldingInhoud({ id }: { id: string }) {
       {data.note ? <Text style={styles.notitie}>{data.note}</Text> : null}
 
       <View style={styles.kaart}>
-        <Rij label="Locatie" waarde={`${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}`} />
+        <Rij label={t('detail.locatie')} waarde={`${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}`} />
         <Rij
-          label="GPS-nauwkeurigheid"
-          waarde={data.accuracyM === null ? 'onbekend' : `± ${Math.round(data.accuracyM)} m`}
+          label={t('detail.gps')}
+          waarde={
+            data.accuracyM === null
+              ? t('detail.gpsOnbekend')
+              : t('detail.gpsWaarde', { m: Math.round(data.accuracyM) })
+          }
         />
-        <Rij label="Status" waarde={statusTekstNl(data.status)} />
+        <Rij label={t('detail.status')} waarde={statusTekstNl(data.status)} />
         {data.confirmCount > 0 ? (
-          <Rij label="Bevestigd door" waarde={`${data.confirmCount} mensen`} />
+          <Rij
+            label={t('detail.bevestigdDoor')}
+            waarde={t('detail.bevestigdWaarde', { n: data.confirmCount })}
+          />
         ) : null}
-        {data.isMine ? <Rij label="Van jou" waarde="ja" /> : null}
+        {data.isMine ? <Rij label={t('detail.vanJou')} waarde={t('detail.ja')} /> : null}
       </View>
 
       {data.status === 'quarantined' && data.isMine ? (
-        <Text style={styles.klein}>
-          Deze melding wordt nagekeken en staat even niet op de publieke kaart. Jij ziet haar
-          nog wel; na het nazicht wordt ze hersteld of verwijderd.
-        </Text>
+        <Text style={styles.klein}>{t('detail.quarantaineUitleg')}</Text>
       ) : null}
 
       {/* Eigen meldingen rapporteer je niet; die kan je in fase 2 opruimen. */}
       {!data.isMine ? <RapporteerSectie reportId={id} /> : null}
 
-      <Text style={styles.klein}>Opruimen markeren komt in een volgende versie.</Text>
+      <Text style={styles.klein}>{t('detail.opruimenLater')}</Text>
     </ScrollView>
   );
 }
@@ -130,8 +137,8 @@ function RapporteerSectie({ reportId }: { reportId: string }) {
       const resultaat = await flagReport(reportId, reason, detail);
       setKlaar(
         resultaat.status === 'quarantined'
-          ? 'Bedankt. De melding is van de kaart gehaald en wordt nagekeken.'
-          : 'Bedankt voor je rapport. Bij meerdere rapporten wordt de melding nagekeken.',
+          ? t('rapporteer.bedanktQuarantaine')
+          : t('rapporteer.bedankt'),
       );
       // De kaart kan veranderd zijn (quarantaine); de detailquery laten we met
       // rust — voor een niet-eigenaar zou een refetch nu report_not_found geven.
@@ -153,17 +160,19 @@ function RapporteerSectie({ reportId }: { reportId: string }) {
       <Pressable
         style={styles.rapporteerKnop}
         accessibilityRole="button"
-        accessibilityLabel="Rapporteer deze melding"
+        accessibilityLabel={t('rapporteer.knopLabel')}
         onPress={() => setOpen(true)}
       >
-        <Text style={styles.rapporteerKnopTekst}>Klopt hier iets niet? Rapporteer</Text>
+        <Text style={styles.rapporteerKnopTekst}>{t('rapporteer.knop')}</Text>
       </Pressable>
     );
   }
 
   return (
     <View style={styles.rapporteerVak}>
-      <Text style={styles.rapporteerTitel}>Wat klopt er niet?</Text>
+      <Text style={styles.rapporteerTitel} accessibilityRole="header">
+        {t('rapporteer.titel')}
+      </Text>
       {FLAG_REASONS.map((reason) => (
         <Pressable
           key={reason}
@@ -180,13 +189,17 @@ function RapporteerSectie({ reportId }: { reportId: string }) {
         style={styles.rapporteerInput}
         value={detail}
         onChangeText={setDetail}
-        placeholder="Toelichting (niet verplicht)"
+        placeholder={t('rapporteer.toelichtingPlaceholder')}
         placeholderTextColor={theme.color.textMuted}
         maxLength={280}
-        accessibilityLabel="Toelichting bij je rapport, niet verplicht"
+        accessibilityLabel={t('rapporteer.toelichtingLabel')}
       />
       {bezig ? <ActivityIndicator color={theme.color.accent} /> : null}
-      {fout ? <Text style={styles.rapporteerFout}>{fout}</Text> : null}
+      {fout ? (
+        <Text style={styles.rapporteerFout} accessibilityLiveRegion="polite">
+          {fout}
+        </Text>
+      ) : null}
     </View>
   );
 }
