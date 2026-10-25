@@ -113,12 +113,12 @@ check('de maplibre-worker wordt als javascript geserveerd',
   worker.status === 200 && !worker.isHtml, JSON.stringify(worker));
 
 // --- 6. de meldknop staat er, met de juiste raakvlakhoogte ---
-const knop = page.getByRole('button', { name: 'Afval melden' });
+const knop = page.getByRole('button', { name: 'Nieuwe melding' });
 const box = await knop.boundingBox();
 check('meldknop is aanwezig en minstens 44 pt hoog', !!box && box.height >= 44,
   box ? `${Math.round(box.width)}x${Math.round(box.height)}` : 'niet gevonden');
-check('meldknop staat rechtsonder (bereikbaar met één hand)',
-  !!box && box.x + box.width > 390 * 0.6 && box.y > 844 * 0.7);
+check('meldknop staat onderaan over de breedte (bereikbaar met één hand)',
+  !!box && box.width > 390 * 0.8 && box.y > 844 * 0.7);
 
 // --- 7. detailscherm haalt een melding op ---
 huidigePagina = '/report/aaaa1111-2222-3333-4444-555566667777';

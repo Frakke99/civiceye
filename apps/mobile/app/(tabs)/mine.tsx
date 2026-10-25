@@ -20,8 +20,8 @@ export default function MijnMeldingen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, padding: theme.space(6), gap: theme.space(3), backgroundColor: theme.color.bg },
-  titel: { fontSize: 22, fontWeight: '700', color: theme.color.text },
-  tekst: { color: theme.color.textMuted, lineHeight: 22 },
-  klein: { color: theme.color.textMuted, fontSize: 12 },
+  root: { flex: 1, padding: theme.space(5), gap: theme.space(3), backgroundColor: theme.color.bg },
+  titel: theme.text.title,
+  tekst: theme.text.bodyMuted,
+  klein: theme.text.small,
 });

@@ -4,6 +4,7 @@
  * meldingen, en dat wil je in een test kunnen aantonen (apps/mobile/test).
  */
 import type { LitterSize, MapMarker, ReportKind } from '@civiceye/shared';
+import { theme } from '../ui/theme';
 
 /** De drie symbolen uit de meldflow. */
 export const SIZE_ICON: Record<LitterSize, string> = {
@@ -22,31 +23,48 @@ export const KIND_ICON: Record<ReportKind, string> = {
 };
 
 /**
- * Kleuren onderscheiden zich niet alléén door kleur: elke marker heeft ook een
- * eigen vorm/label, want ongeveer 8 % van de mannen ziet rood en groen anders
+ * Kleuren onderscheiden zich niet alléén door kleur: de drie groottes
+ * verschillen ook in lichtheid en in straal, en elke marker heeft een eigen
+ * label. Ongeveer 8 % van de mannen ziet rood en groen anders
  * (docs/05-mobile-client.md, toegankelijkheid).
  */
 export const COLORS = {
-  cluster: '#1a7f4b',
-  piece: '#e8a33d',
-  bag: '#e07b39',
-  heap: '#c0392b',
-  other: '#5b6b7a',
+  cluster: theme.color.accent,
+  piece: theme.size.piece.fill,
+  bag: theme.size.bag.fill,
+  heap: theme.size.heap.fill,
+  other: theme.color.textMuted,
 } as const;
 
+/** Voorgrondkleur op de marker: donker op de lichte groottes, wit op de rest. */
+const TEXT_ON = {
+  cluster: theme.color.accentText,
+  piece: theme.size.piece.on,
+  bag: theme.size.bag.on,
+  heap: theme.size.heap.on,
+  other: theme.color.accentText,
+} as const;
+
+/** Grotere hoop, grotere stip: zo valt een sluikstort op de kaart meteen op. */
+const SIZE_RADIUS: Record<LitterSize, number> = { piece: 14, bag: 16, heap: 19 };
+
+function markerTone(marker: MapMarker): keyof typeof COLORS {
+  if (marker.isCluster) return 'cluster';
+  if (marker.kind !== 'litter' || !marker.size) return 'other';
+  return marker.size;
+}
+
 export function markerColor(marker: MapMarker): string {
-  if (marker.isCluster) return COLORS.cluster;
-  if (marker.kind !== 'litter') return COLORS.other;
-  switch (marker.size) {
-    case 'piece':
-      return COLORS.piece;
-    case 'bag':
-      return COLORS.bag;
-    case 'heap':
-      return COLORS.heap;
-    default:
-      return COLORS.other;
-  }
+  return COLORS[markerTone(marker)];
+}
+
+export function markerTextColor(marker: MapMarker): string {
+  return TEXT_ON[markerTone(marker)];
+}
+
+export function markerRadius(marker: MapMarker): number {
+  if (marker.isCluster) return clusterRadius(marker.pointCount);
+  return marker.kind === 'litter' && marker.size ? SIZE_RADIUS[marker.size] : 14;
 }
 
 /** Clusterbellen groeien met de wortel van het aantal: anders overheersen ze. */
@@ -104,6 +122,7 @@ export interface MarkerFeature {
     pointCount: number;
     label: string;
     color: string;
+    textColor: string;
     radius: number;
     hasPhoto: boolean;
   };
@@ -137,7 +156,8 @@ export function toMarkerCollection(markers: MapMarker[]): MarkerCollection {
         pointCount: m.pointCount,
         label: markerLabel(m),
         color: markerColor(m),
-        radius: m.isCluster ? clusterRadius(m.pointCount) : 13,
+        textColor: markerTextColor(m),
+        radius: markerRadius(m),
         hasPhoto: m.hasPhoto,
       },
     });

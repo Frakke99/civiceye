@@ -4,6 +4,8 @@ import {
   clusterRadius,
   markerColor,
   markerLabel,
+  markerRadius,
+  markerTextColor,
   relativeTimeNl,
   sizeLabelNl,
   toMarkerCollection,
@@ -123,6 +125,43 @@ describe('markerColor', () => {
     for (const m of [marker(), marker({ isCluster: true }), marker({ kind: 'other', size: null })]) {
       expect(markerColor(m)).toMatch(/^#[0-9a-f]{6}$/i);
     }
+  });
+});
+
+/** Relatieve luminantie volgens WCAG 2.x. */
+function luminantie(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+}
+
+function contrast(a: string, b: string): number {
+  const [hoog, laag] = [luminantie(a), luminantie(b)].sort((x, y) => y - x);
+  return (hoog! + 0.05) / (laag! + 0.05);
+}
+
+describe('markerTextColor', () => {
+  it('blijft leesbaar op elke markerkleur (minstens 4,5:1)', () => {
+    for (const m of [
+      marker({ size: 'piece' }),
+      marker({ size: 'bag' }),
+      marker({ size: 'heap' }),
+      marker({ isCluster: true }),
+      marker({ kind: 'other', size: null }),
+    ]) {
+      expect(contrast(markerTextColor(m), markerColor(m))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
+describe('markerRadius', () => {
+  it('maakt grotere hopen ook groter op de kaart', () => {
+    const r = (size: 'piece' | 'bag' | 'heap') => markerRadius(marker({ size }));
+    expect(r('piece')).toBeLessThan(r('bag'));
+    expect(r('bag')).toBeLessThan(r('heap'));
+    expect(r('piece')).toBeGreaterThanOrEqual(14);
   });
 });
 

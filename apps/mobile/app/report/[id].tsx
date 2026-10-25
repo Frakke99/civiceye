@@ -1,4 +1,5 @@
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { LitterSize } from '@civiceye/shared';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { errorText, parseApiError } from '@civiceye/shared';
@@ -57,8 +58,14 @@ function MeldingInhoud({ id }: { id: string }) {
 
   return (
     <ScrollView contentContainerStyle={styles.root}>
-      <Text style={styles.titel}>{sizeLabelNl(data.size)}</Text>
-      <Text style={styles.tekst}>{relativeTimeNl(data.createdAt)}</Text>
+      <View style={styles.chips}>
+        {data.size ? <GrootteChip size={data.size} /> : null}
+        <View style={styles.chip}>
+          <Text style={styles.chipTekst}>{data.status === 'cleaned' ? 'Opgeruimd' : 'Open'}</Text>
+        </View>
+      </View>
+      <Text style={styles.kop}>{sizeLabelNl(data.size)}</Text>
+      <Text style={styles.ondertitel}>Gemeld {relativeTimeNl(data.createdAt)}</Text>
 
       {foto ? (
         <Image
@@ -98,6 +105,19 @@ function MeldingInhoud({ id }: { id: string }) {
   );
 }
 
+const GROOTTE_NL: Record<LitterSize, string> = { piece: 'Klein', bag: 'Medium', heap: 'Groot' };
+
+/** Zelfde kleur als de marker op de kaart, met de grootte ook als woord. */
+function GrootteChip({ size }: { size: LitterSize }) {
+  const kleur = theme.size[size];
+  return (
+    <View style={[styles.chip, { backgroundColor: kleur.soft }]}>
+      <View style={[styles.chipStip, { backgroundColor: kleur.fill }]} />
+      <Text style={[styles.chipTekst, { color: kleur.softText }]}>{GROOTTE_NL[size]}</Text>
+    </View>
+  );
+}
+
 function Rij({ label, waarde }: { label: string; waarde: string }) {
   return (
     <View style={styles.rij}>
@@ -108,7 +128,7 @@ function Rij({ label, waarde }: { label: string; waarde: string }) {
 }
 
 const styles = StyleSheet.create({
-  root: { padding: theme.space(5), gap: theme.space(3), backgroundColor: theme.color.bg },
+  root: { padding: theme.space(5), gap: theme.space(4), backgroundColor: theme.color.bg },
   midden: {
     flex: 1,
     alignItems: 'center',
@@ -117,21 +137,41 @@ const styles = StyleSheet.create({
     gap: theme.space(3),
     backgroundColor: theme.color.bg,
   },
-  titel: { fontSize: 20, fontWeight: '700', color: theme.color.text },
-  tekst: { color: theme.color.textMuted, lineHeight: 22, textAlign: 'center' },
-  notitie: { color: theme.color.text, fontSize: 15, lineHeight: 22 },
+  titel: { ...theme.text.heading, textAlign: 'center' },
+  tekst: { ...theme.text.bodyMuted, textAlign: 'center' },
+  chips: { flexDirection: 'row', gap: theme.space(2) },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space(1.5),
+    height: 28,
+    paddingHorizontal: theme.space(2.5),
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.color.bgSubtle,
+  },
+  chipStip: { width: 8, height: 8, borderRadius: 4 },
+  chipTekst: { ...theme.text.label, fontFamily: theme.font.bold, fontSize: 13 },
+  kop: { ...theme.text.title, fontSize: 24, lineHeight: 28, marginTop: -theme.space(1) },
+  ondertitel: { ...theme.text.small, fontSize: 14, marginTop: -theme.space(3) },
+  notitie: { ...theme.text.body, fontSize: 15, lineHeight: 22 },
   foto: {
     width: '100%',
     aspectRatio: 4 / 3,
-    borderRadius: theme.radius.m,
-    backgroundColor: theme.color.bgElevated,
+    borderRadius: theme.radius.l,
+    backgroundColor: theme.color.bgSubtle,
   },
-  geenFoto: { alignItems: 'center', justifyContent: 'center' },
+  geenFoto: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: theme.color.lineStrong,
+  },
   kaart: {
-    borderWidth: 1,
-    borderColor: theme.color.line,
-    borderRadius: theme.radius.m,
+    borderRadius: theme.radius.l,
     backgroundColor: theme.color.bgElevated,
+    overflow: 'hidden',
+    ...theme.shadow.card,
   },
   rij: {
     flexDirection: 'row',
@@ -142,7 +182,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.color.line,
   },
-  label: { color: theme.color.textMuted },
-  waarde: { color: theme.color.text, fontWeight: '600' },
-  klein: { color: theme.color.textMuted, fontSize: 12, lineHeight: 18 },
+  label: { ...theme.text.small, fontSize: 15 },
+  waarde: { ...theme.text.label, fontSize: 15 },
+  klein: theme.text.small,
 });

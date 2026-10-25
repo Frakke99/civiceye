@@ -73,15 +73,21 @@ export default function KaartScherm() {
       ) : null}
 
       {/* Sprint 2 vult deze knop met de meldflow. Hij staat er nu al zodat de
-          plaatsing op elk toestel getest kan worden (rechtsonder, één hand). */}
+          plaatsing op elk toestel getest kan worden: over de volle breedte
+          onderaan, met één duim bereikbaar, zoals in het app-design. */}
       <Pressable
-        style={[styles.meldKnop, { bottom: insets.bottom + theme.space(6) }]}
+        style={({ pressed }) => [
+          styles.meldKnop,
+          { bottom: insets.bottom + theme.space(4) },
+          pressed && styles.meldKnopIngedrukt,
+        ]}
         accessibilityRole="button"
-        accessibilityLabel="Afval melden"
+        accessibilityLabel="Nieuwe melding"
         accessibilityHint="Komt in de volgende versie"
         onPress={() => router.push('/report/nieuw')}
       >
-        <Text style={styles.meldKnopTekst}>Afval melden</Text>
+        <Text style={styles.meldKnopPlus}>+</Text>
+        <Text style={styles.meldKnopTekst}>Nieuwe melding</Text>
       </Pressable>
     </View>
   );
@@ -91,42 +97,42 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.bg },
   balk: {
     position: 'absolute',
-    left: theme.space(3),
+    left: theme.space(4),
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.space(2),
-    paddingHorizontal: theme.space(3),
-    paddingVertical: theme.space(2),
-    borderRadius: theme.radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderWidth: 1,
-    borderColor: theme.color.line,
+    minHeight: theme.minTouch,
+    paddingHorizontal: theme.space(4),
+    borderRadius: theme.radius.l,
+    backgroundColor: theme.color.bgElevated,
+    ...theme.shadow.float,
   },
-  balkTekst: { color: theme.color.text, fontSize: 13, fontWeight: '600' },
+  balkTekst: { ...theme.text.label, fontFamily: theme.font.bold },
   foutBalk: {
     position: 'absolute',
-    left: theme.space(3),
-    right: theme.space(3),
+    left: theme.space(4),
+    right: theme.space(4),
     padding: theme.space(3),
     borderRadius: theme.radius.m,
-    backgroundColor: '#fdecea',
+    backgroundColor: theme.color.dangerSoft,
     borderWidth: 1,
     borderColor: theme.color.danger,
   },
-  foutTekst: { color: theme.color.danger, fontSize: 13 },
+  foutTekst: { ...theme.text.small, color: theme.color.danger },
   meldKnop: {
     position: 'absolute',
+    left: theme.space(4),
     right: theme.space(4),
-    minHeight: theme.minTouch + 8,
-    paddingHorizontal: theme.space(5),
+    height: theme.buttonHeight,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: theme.radius.pill,
+    gap: theme.space(2),
+    borderRadius: theme.radius.l,
     backgroundColor: theme.color.accent,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
+    ...theme.shadow.float,
   },
-  meldKnopTekst: { color: theme.color.accentText, fontWeight: '700', fontSize: 16 },
+  meldKnopIngedrukt: { backgroundColor: theme.color.accentPressed },
+  meldKnopPlus: { ...theme.text.button, fontSize: 24, color: theme.color.accentText },
+  meldKnopTekst: { ...theme.text.button, color: theme.color.accentText },
 });

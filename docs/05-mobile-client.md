@@ -40,7 +40,7 @@ Doel: **p95 onder 15 seconden**, van app openen tot melding gepost.
 ```mermaid
 stateDiagram-v2
     [*] --> Kaart
-    Kaart --> Locatie: knop "Afval melden"
+    Kaart --> Locatie: knop "Nieuwe melding"
     Locatie --> Type: GPS gevonden (of tik op de kaart)
     Locatie --> Type: GPS geweigerd → sleep de pin
     Type --> Bevestigen: kies papiertje / zak / hoop
@@ -136,13 +136,36 @@ kleine pans dezelfde cache-entry raken in plaats van elke pixel een nieuwe query
 Niet optioneel: de doelgroep is breed en het scherm wordt buiten in de zon
 gebruikt.
 
-- Contrast ≥ 4,5:1; markers onderscheiden zich door **vorm én kleur**, niet
-  door kleur alleen.
+- Contrast ≥ 4,5:1; markers onderscheiden zich door **grootte, lichtheid én
+  kleur**, niet door tint alleen (`apps/mobile/test/markers.test.ts` bewaakt
+  het contrast van het label op elke markerkleur).
 - Alle raakvlakken ≥ 44×44 pt.
 - Labels voor screenreaders op de drie typekeuzes en op elke marker
   ("afvalzak, 120 meter, gemeld 2 dagen geleden").
 - Werkt met systeemlettergrootte tot 200 %; het meldformulier scrollt.
-- Volledig bedienbaar met één hand: de meldknop staat rechtsonder.
+- Volledig bedienbaar met één hand: de meldknop staat onderaan over de volle
+  breedte.
+
+## Huisstijl
+
+Kleuren, typografie en maten komen uit het CivicEye app-design en staan op één
+plek: `apps/mobile/src/ui/theme.ts`. Schermen gebruiken alleen die tokens, geen
+losse hexwaarden.
+
+| Token | Waarde | Gebruik |
+|---|---|---|
+| `color.bg` | `#F5F6F2` | ondergrond van schermen |
+| `color.bgElevated` | `#FFFFFF` | kaarten, sheets, zwevende knoppen |
+| `color.text` / `textMuted` | `#15201B` / `#5A665F` | tekst (14:1 en 5,5:1) |
+| `color.accent` | `#1E6B45` | hoofdknoppen, actieve tab, clusters |
+| `size.piece` | `#9BD1B2` | klein afval (papiertje), donker label |
+| `size.bag` | `#E8A33A` | medium (zak), donker label |
+| `size.heap` | `#9C3A1E` | groot (afvalhoop), wit label |
+
+Lettertype: Figtree (400 tot 800), gebundeld via `@expo-google-fonts/figtree`
+en geladen in `app/_layout.tsx`. Op Android selecteert `fontWeight` geen
+gewicht van een geladen font, dus stijlen gebruiken `theme.text.*` of
+`theme.font.*` in plaats van `fontWeight`.
 
 ## Web-variant
 

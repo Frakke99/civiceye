@@ -13,7 +13,7 @@ export const BLANK_STYLE = {
     {
       id: 'achtergrond',
       type: 'background' as const,
-      paint: { 'background-color': '#e8eef1' },
+      paint: { 'background-color': '#E6EAE1' },
     },
   ],
 };

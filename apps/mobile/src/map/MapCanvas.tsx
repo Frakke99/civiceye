@@ -110,9 +110,9 @@ export function MapCanvas({
             paint={{
               'circle-radius': ['get', 'radius'],
               'circle-color': ['get', 'color'],
-              'circle-stroke-width': 2,
+              'circle-stroke-width': 3,
               'circle-stroke-color': '#ffffff',
-              'circle-opacity': 0.92,
+              'circle-opacity': 1,
             }}
           />
           {/* Alleen met een echte stijl: zonder glyphs blijft de stijl "niet
@@ -126,7 +126,7 @@ export function MapCanvas({
                 'text-size': 13,
                 'text-allow-overlap': true,
               }}
-              paint={{ 'text-color': '#ffffff' }}
+              paint={{ 'text-color': ['get', 'textColor'] }}
             />
           ) : null}
         </GeoJSONSource>

@@ -53,13 +53,13 @@ export default function Instellingen() {
 }
 
 const styles = StyleSheet.create({
-  root: { padding: theme.space(6), gap: theme.space(3), backgroundColor: theme.color.bg },
-  titel: { fontSize: 22, fontWeight: '700', color: theme.color.text },
+  root: { padding: theme.space(5), gap: theme.space(3), backgroundColor: theme.color.bg },
+  titel: theme.text.title,
   kaart: {
-    borderWidth: 1,
-    borderColor: theme.color.line,
-    borderRadius: theme.radius.m,
+    borderRadius: theme.radius.l,
     backgroundColor: theme.color.bgElevated,
+    overflow: 'hidden',
+    ...theme.shadow.card,
   },
   rij: {
     flexDirection: 'row',
@@ -70,9 +70,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.color.line,
   },
-  label: { color: theme.color.textMuted },
-  waarde: { color: theme.color.text, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
-  kopje: { fontSize: 16, fontWeight: '700', color: theme.color.text, marginTop: theme.space(4) },
-  tekst: { color: theme.color.textMuted, lineHeight: 22 },
-  klein: { color: theme.color.textMuted, fontSize: 12, lineHeight: 18 },
+  label: { ...theme.text.small, fontSize: 15 },
+  waarde: { ...theme.text.label, fontSize: 15, flexShrink: 1, textAlign: 'right' },
+  kopje: { ...theme.text.heading, fontSize: 18, marginTop: theme.space(4) },
+  tekst: theme.text.bodyMuted,
+  klein: theme.text.small,
 });
