@@ -25,7 +25,11 @@ export default function Instellingen() {
     [t('instellingen.supabase'), env.supabaseUrl.replace(/^https?:\/\//, '')],
     [
       t('instellingen.kaartlaag'),
-      hasMapTiler ? t('instellingen.maptiler') : t('instellingen.geenKey'),
+      hasMapTiler
+        ? t('instellingen.maptiler')
+        : env.basemap === 'off'
+          ? t('instellingen.geenKey')
+          : t('instellingen.openfreemap'),
     ],
     [t('instellingen.platform'), `${Platform.OS} ${Platform.Version ?? ''}`.trim()],
     [t('instellingen.appVersie'), Constants.expoConfig?.version ?? '?'],

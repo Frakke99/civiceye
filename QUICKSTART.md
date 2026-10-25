@@ -294,8 +294,10 @@ cp apps/mobile/.env.example apps/mobile/.env
 # vul EXPO_PUBLIC_SUPABASE_URL en EXPO_PUBLIC_SUPABASE_ANON_KEY in
 ```
 
-De MapTiler-key is optioneel: zonder key krijg je je meldingen op een effen
-ondergrond in plaats van op een kaart. Alles werkt, je ziet alleen geen straten.
+De MapTiler-key is optioneel: zonder key gebruikt de app OpenFreeMap — een
+gratis, keyloze straatkaart op OpenStreetMap-data. Je ziet dus gewoon straten.
+Alleen met `EXPO_PUBLIC_BASEMAP=off` (zo draaien de tests, die geen netwerk
+mogen gebruiken) valt de kaart terug op een effen ondergrond.
 
 ### In de browser (snelste weg, werkt op elk toestel)
 
@@ -373,8 +375,9 @@ Eenmalig, in de GitHub-repo (~5 minuten):
    elke push naar `main` automatisch opnieuw.
 
 De app staat dan op `https://<owner>.github.io/<repo>/` — dat is de link die
-je deelt. De MapTiler-key is voor een demo sterk aan te raden: mét key zien
-testers straten en pleinen, zonder key een effen ondergrond.
+je deelt. Zonder MapTiler-key gebruikt de app OpenFreeMap: ook echte straten,
+gratis en zonder registratie, maar als publieke dienst zonder garanties. Voor
+de echte roll-out blijft MapTiler (met budgetalert) de keuze uit docs/12.
 
 Foto's meesturen werkt pas wanneer ook de twee Edge Functions gedeployed zijn
 (zie [supabase/functions/README.md](supabase/functions/README.md)); zonder die
@@ -411,6 +414,6 @@ Zie [docs/13-implementatieplan.md](docs/13-implementatieplan.md).
 | App toont "Kaart niet beschikbaar" op een toestel | je draait in Expo Go | maak een development build (`npx expo run:android`) |
 | Directe link naar `/report/<id>` geeft 404 op je host | SPA-rewrite ontbreekt | alle paden naar `index.html` laten wijzen |
 | `Ontbrekende configuratie: EXPO_PUBLIC_SUPABASE_URL` | geen `.env` in `apps/mobile` | `cp apps/mobile/.env.example apps/mobile/.env` en invullen |
-| Kaart blijft grijs, markers wel zichtbaar | geen MapTiler-key | verwacht gedrag; vul `EXPO_PUBLIC_MAPTILER_KEY` in |
+| Kaart blijft grijs, markers wel zichtbaar | basiskaart staat uit (`EXPO_PUBLIC_BASEMAP=off`), of geen internet voor de kaarttegels | laat de variabele weg voor de OpenFreeMap-straatkaart |
 | Kaart is leeg terwijl de balk "N meldingen" toont | de maplibre-worker ontbreekt in de build | `pnpm prepare:web` en opnieuw bouwen; gebruik `pnpm web:build` in plaats van `expo export` |
-| Clusters tonen geen getal | zonder MapTiler-key is er geen font | verwacht gedrag; bollen verschillen wel in grootte |
+| Clusters tonen geen getal | met `EXPO_PUBLIC_BASEMAP=off` is er geen font | verwacht gedrag in testbuilds; bollen verschillen wel in grootte |

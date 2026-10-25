@@ -116,6 +116,7 @@
   "instellingen.supabase": "Supabase",
   "instellingen.kaartlaag": "Kaartlaag",
   "instellingen.maptiler": "MapTiler",
+  "instellingen.openfreemap": "OpenFreeMap (gratis, zonder key)",
   "instellingen.geenKey": "geen key — effen ondergrond",
   "instellingen.platform": "Platform",
   "instellingen.appVersie": "App-versie",

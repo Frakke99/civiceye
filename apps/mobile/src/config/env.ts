@@ -46,8 +46,14 @@ export const env = {
     'EXPO_PUBLIC_SUPABASE_ANON_KEY',
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
   ),
-  /** Optioneel: zonder key valt de kaart terug op een eenvoudige achtergrond. */
+  /** Optioneel: zonder key valt de kaart terug op OpenFreeMap (gratis, keyloos). */
   mapTilerKey: process.env.EXPO_PUBLIC_MAPTILER_KEY ?? '',
+  /**
+   * 'off' schakelt de online basiskaart helemaal uit (effen ondergrond).
+   * Gebruikt door de e2e-build: de tests moeten zonder netwerk en zonder
+   * externe diensten draaien.
+   */
+  basemap: process.env.EXPO_PUBLIC_BASEMAP ?? '',
   appEnv: (process.env.EXPO_PUBLIC_ENV ?? 'dev') as AppEnv,
 };
 

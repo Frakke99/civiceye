@@ -183,7 +183,7 @@ Alleen kijken of er een canvas bestaat, was niet genoeg — die test stond groen
 terwijl de kaart leeg was.
 
 **Labels vragen een echte kaartstijl.** Een symbol-laag heeft glyphs (fonts)
-nodig, en die komen uit de stijl. Zonder MapTiler-key laten we de tekstlaag weg:
+nodig, en die komen uit de stijl. Met de basiskaart uit laten we de tekstlaag weg:
 een stijl zónder glyphs bereikt nooit de toestand "geladen" zodra er toch tekst
 in staat, en dan verdwijnt álles. Je ziet dan clusterbollen op grootte, met het
 totaal in de balk bovenaan.
@@ -193,6 +193,9 @@ onbekende paden naar `index.html` laten wijzen, anders werkt een directe link
 naar `/report/<id>` niet. Op Vercel en Netlify is dat de standaard-SPA-rewrite;
 zie ook de toelichting in [ADR 0001](adr/0001-client-platform-expo.md).
 
-**Kaart zonder MapTiler-key:** dan valt de app terug op een effen ondergrond met
+**Kaart zonder MapTiler-key:** dan gebruikt de app OpenFreeMap (gratis
+vectortegels zonder key; publieke dienst, "as-is"). Met
+`EXPO_PUBLIC_BASEMAP=off` — zo draaien de e2e-tests, hermetisch — valt de app
+terug op een effen ondergrond met
 de markers erop, in plaats van te falen. Handig om het backend te testen zonder
 kaartaccount.

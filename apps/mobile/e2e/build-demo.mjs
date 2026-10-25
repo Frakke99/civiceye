@@ -39,5 +39,8 @@ execSync('pnpm exec expo export --platform web --output-dir dist --clear', {
     EXPO_PUBLIC_SUPABASE_ANON_KEY: 'demo-anon-key',
     EXPO_PUBLIC_ENV: 'dev',
     EXPO_PUBLIC_MAPTILER_KEY: process.env.EXPO_PUBLIC_MAPTILER_KEY ?? '',
+    // Standaard de echte straatkaart (OpenFreeMap); 'off' voor een demo
+    // zonder internet.
+    EXPO_PUBLIC_BASEMAP: process.env.EXPO_PUBLIC_BASEMAP ?? '',
   },
 });
